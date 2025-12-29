@@ -26,6 +26,7 @@ const (
 type FabricClient struct {
 	Connection *grpc.ClientConn
 	Store      *EnrollmentStore
+	Network    *client.Network
 }
 
 // NewFabricClient initializes the gRPC connection and enrollment store
@@ -39,9 +40,31 @@ func NewFabricClient() (*FabricClient, error) {
 	// In production, this would point to a secure wallet directory
 	store := NewEnrollmentStore(cryptoPath + "/users")
 
+	// Initialize basic gateway connection for event listener (using Admin)
+	id, err := store.GetIdentity("Admin@org1.example.com", mspID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load admin identity: %w", err)
+	}
+	sign, err := store.GetSigner("Admin@org1.example.com")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load admin signer: %w", err)
+	}
+
+	gw, err := client.Connect(
+		id,
+		client.WithSign(sign),
+		client.WithClientConnection(clientConnection),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to gateway: %w", err)
+	}
+
+	network := gw.GetNetwork(channelName)
+
 	return &FabricClient{
 		Connection: clientConnection,
 		Store:      store,
+		Network:    network,
 	}, nil
 }
 

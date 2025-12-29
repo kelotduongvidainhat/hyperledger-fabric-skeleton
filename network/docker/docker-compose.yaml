@@ -6,6 +6,7 @@ volumes:
   peer0.org2.example.com:
   couchdb0:
   couchdb1:
+  postgres_data:
 
 networks:
   test:
@@ -206,6 +207,20 @@ services:
       - 9051:9051
     depends_on:
       - couchdb1
+    networks:
+      - test
+  
+  # PostgreSQL
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=fabric_assets
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - test
 

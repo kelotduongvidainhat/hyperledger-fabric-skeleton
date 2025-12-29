@@ -44,7 +44,9 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 		err = ctx.GetStub().PutState(asset.ID, assetJSON)
 		if err != nil {
 			return fmt.Errorf("failed to put to world state: %v", err)
-		}
+		} 
+		ctx.GetStub().SetEvent("AssetCreated", assetJSON)
+		
 	}
 
 	return nil
@@ -68,6 +70,12 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 		AppraisedValue: appraisedValue,
 	}
 	assetJSON, err := json.Marshal(asset)
+	if err != nil {
+		return err
+	}
+
+	// Emit event for backend listener
+	err = ctx.GetStub().SetEvent("AssetCreated", assetJSON)
 	if err != nil {
 		return err
 	}
@@ -152,6 +160,12 @@ func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterfac
 
 	asset.Owner = newOwner
 	assetJSON, err := json.Marshal(asset)
+	if err != nil {
+		return err
+	}
+
+	// Emit event for backend listener
+	err = ctx.GetStub().SetEvent("AssetTransferred", assetJSON)
 	if err != nil {
 		return err
 	}

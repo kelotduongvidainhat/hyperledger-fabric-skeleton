@@ -38,3 +38,9 @@ export const fetchIdentities = async () => {
     const response = await api.get('/admin/identities');
     return response.data;
 };
+
+export const fetchAssetsFromDB = async () => {
+    const response = await api.get('/api/query/assets'); // Modified specific to project structure
+    // Normalize data structure if needed to match blockchain response
+    return response.data;
+};

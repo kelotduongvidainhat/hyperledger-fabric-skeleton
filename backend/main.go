@@ -1,25 +1,55 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/kelotduongvidainhat/hyperledger-fabric-skeleton/backend/internal/fabric"
+	"github.com/kelotduongvidainhat/hyperledger-fabric-skeleton/backend/internal/listener"
+	_ "github.com/lib/pq"
 )
 
-var fabricClient *fabric.FabricClient
+var (
+	fabricClient *fabric.FabricClient
+	db           *sql.DB
+)
 
 func main() {
 	var err error
-	// Initialize Fabric Client
+	// 1. Initialize Fabric Client
 	fabricClient, err = fabric.NewFabricClient()
 	if err != nil {
-		fmt.Printf("Error initializing Fabric Client: %s\n", err)
-		return
+		log.Fatalf("Error initializing Fabric Client: %v", err)
 	}
 	defer fabricClient.Close()
+
+	// 2. Initialize Database
+	connStr := "postgres://postgres:password@localhost:5432/fabric_assets?sslmode=disable"
+	db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Error connecting to database: %v", err)
+	}
+	defer db.Close()
+
+	if err = db.Ping(); err != nil {
+		log.Fatalf("Error pinging database: %v", err)
+	}
+	fmt.Println("Connected to PostgreSQL database")
+
+	// 3. Start Event Listener
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		if err := listener.StartEventListener(ctx, fabricClient.Network, db); err != nil {
+			log.Printf("Event listener error: %v", err)
+		}
+	}()
 
 	// Setup Gin router
 	r := gin.Default()
@@ -46,9 +76,38 @@ func main() {
 	// Admin Routes
 	r.GET("/admin/identities", listIdentities)
 
+	// DB Query Routes
+	r.GET("/api/query/assets", queryAssetsFromDB)
+
 	// Start server
 	fmt.Println("Backend API starting on :8080...")
 	r.Run(":8080")
+}
+
+func queryAssetsFromDB(c *gin.Context) {
+	rows, err := db.Query("SELECT id, color, size, owner, appraised_value FROM assets")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var assets []gin.H
+	for rows.Next() {
+		var id, color, owner string
+		var size, value int
+		if err := rows.Scan(&id, &color, &size, &owner, &value); err != nil {
+			continue
+		}
+		assets = append(assets, gin.H{
+			"ID":             id,
+			"Color":          color,
+			"Size":           size,
+			"Owner":          owner,
+			"AppraisedValue": value,
+		})
+	}
+	c.JSON(http.StatusOK, assets)
 }
 
 func getAllAssets(c *gin.Context) {

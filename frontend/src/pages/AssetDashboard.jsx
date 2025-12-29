@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { fetchAssets, createAsset, transferAsset, setAuthToken } from '../services/api';
+import { fetchAssets, fetchAssetsFromDB, createAsset, transferAsset, setAuthToken } from '../services/api';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/card';
-import { RefreshCw, Send, Plus } from 'lucide-react';
+import { RefreshCw, Send, Plus, Database, link } from 'lucide-react';
 
 export default function AssetDashboard() {
     const [currentUser, setCurrentUser] = useState('admin');
+    const [dataSource, setDataSource] = useState('blockchain'); // 'blockchain' | 'database'
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -17,12 +18,17 @@ export default function AssetDashboard() {
     useEffect(() => {
         setAuthToken(currentUser);
         loadAssets();
-    }, [currentUser]);
+    }, [currentUser, dataSource]);
 
     const loadAssets = async () => {
         setLoading(true);
         try {
-            const data = await fetchAssets();
+            let data;
+            if (dataSource === 'database') {
+                data = await fetchAssetsFromDB();
+            } else {
+                data = await fetchAssets();
+            }
             setAssets(data);
         } catch (error) {
             console.error("Failed to fetch assets", error);
@@ -62,6 +68,23 @@ export default function AssetDashboard() {
             <header className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold">Hyperledger Fabric Asset Manager</h1>
                 <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 mr-4">
+                        <span className="text-sm font-medium">Source:</span>
+                        <div className="flex bg-gray-100 p-1 rounded-lg">
+                            <button
+                                onClick={() => setDataSource('blockchain')}
+                                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${dataSource === 'blockchain' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-900'}`}
+                            >
+                                Blockchain
+                            </button>
+                            <button
+                                onClick={() => setDataSource('database')}
+                                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${dataSource === 'database' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-900'}`}
+                            >
+                                Database
+                            </button>
+                        </div>
+                    </div>
                     <span className="text-sm text-gray-500">Acting as:</span>
                     <select
                         className="border rounded p-2"

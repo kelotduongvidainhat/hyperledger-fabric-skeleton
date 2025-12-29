@@ -29,6 +29,7 @@ The project runs a 2-Organization Hyperledger Fabric network (v2.5) with Raft co
 | **Org2 CA** | `ca_org2` | 8054 | Certificate Authority for Org2 |
 | **Orderer CA** | `ca_orderer` | 9054 | Certificate Authority for Orderer |
 | **CouchDB** | `couchdb0`, `couchdb1` | 5984, 7984 | World State Databases |
+| **PostgreSQL** | `postgres` | 5432 | Off-chain Database (Event Sync) |
 | **Backend API** | `backend-api` | 8080 | Go REST API (Gin + Fabric Gateway) |
 | **Frontend** | `vite-react` | 5173 | React DApp Interface |
 
@@ -42,6 +43,7 @@ The project runs a 2-Organization Hyperledger Fabric network (v2.5) with Raft co
 - [x] **CouchDB**: 2 instances running (v3.4.2)
 - [x] **Backend API**: REST API with Dynamic Identity Support (Port 8080)
 - [x] **Frontend**: React Dashboard for Asset Management (Port 5173)
+- [x] **PostgreSQL**: Off-chain database with automatic event synchronization
 
 ## 📚 Documentation
 
