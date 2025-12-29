@@ -1,0 +1,45 @@
+# Hyperledger Fabric Artifacts
+network/crypto-config/
+network/channel-artifacts/
+network/docker/volumes/
+*.tar.gz
+*.block
+*.tx
+connection.json
+
+# Binaries
+bin/
+chaincode/asset-transfer/asset-transfer
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Go
+vendor/
+go.sum
+pkg/
+
+# Node.js (Frontend/Backend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Docker
+.docker/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
