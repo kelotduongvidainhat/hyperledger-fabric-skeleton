@@ -23,6 +23,17 @@ CHAINCODE_LABEL="${CHAINCODE_NAME}_${CHAINCODE_VERSION}"
 CHANNEL_NAME="mychannel"
 CHAINCODE_DIR="/home/qwe/hyperledger-fabric-skeleton/chaincode/asset-transfer"
 
+# Detect current sequence
+echo -e "${YELLOW}Detecting current chaincode sequence...${NC}"
+CURRENT_SEQUENCE=$(docker exec cli peer lifecycle chaincode querycommitted --channelID ${CHANNEL_NAME} --name ${CHAINCODE_NAME} 2>/dev/null | grep "Sequence:" | sed 's/.*Sequence: //;s/,.*//')
+if [ -z "$CURRENT_SEQUENCE" ]; then
+  SEQUENCE=1
+  echo "No existing definition found. Starting with sequence 1."
+else
+  SEQUENCE=$((CURRENT_SEQUENCE + 1))
+  echo "Current sequence is $CURRENT_SEQUENCE. Using sequence $SEQUENCE."
+fi
+
 cd $CHAINCODE_DIR
 
 # Step 1: Build chaincode Docker image
@@ -72,16 +83,27 @@ echo ""
 
 # Step 5: Install on Org1
 echo -e "${YELLOW}Step 5: Installing chaincode on Org1 peer...${NC}"
-docker exec cli bash -c "
+INSTALL_OUTPUT_ORG1=$(docker exec cli bash -c "
 export CORE_PEER_LOCALMSPID=Org1MSP
 export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
 export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
 export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
 
-peer lifecycle chaincode install /opt/gopath/src/github.com/chaincode/asset-transfer/${CHAINCODE_NAME}.tar.gz
-"
+peer lifecycle chaincode install /opt/gopath/src/github.com/chaincode/asset-transfer/${CHAINCODE_NAME}.tar.gz 2>&1
+")
 
-echo -e "${GREEN}✓ Installed on Org1${NC}"
+PACKAGE_ID=$(echo "$INSTALL_OUTPUT_ORG1" | grep "Chaincode code package identifier:" | sed 's/.*identifier: //')
+if [ -z "$PACKAGE_ID" ]; then
+# Fallback: find the package ID with the latest hash (since they are alphabetical, this might not be perfect, but better than tail -n 1 which is non-deterministic)
+    # Actually, let's just use queryinstalled and find the one that matches our label
+    PACKAGE_ID=$(docker exec cli bash -c "
+    export CORE_PEER_LOCALMSPID=Org1MSP
+    export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+    peer lifecycle chaincode queryinstalled" | grep "Label: ${CHAINCODE_LABEL}" | grep "Package ID:" | tail -n 1 | sed 's/^Package ID: //' | sed 's/, Label:.*$//' | tr -d '\r\n ')
+fi
+
+echo "Package ID: $PACKAGE_ID"
+echo -e "${GREEN}✓ Installed and captured ID${NC}"
 echo ""
 
 # Step 6: Install on Org2
@@ -92,39 +114,25 @@ export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric
 export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
 export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
 
-peer lifecycle chaincode install /opt/gopath/src/github.com/chaincode/asset-transfer/${CHAINCODE_NAME}.tar.gz
+peer lifecycle chaincode install /opt/gopath/src/github.com/chaincode/asset-transfer/${CHAINCODE_NAME}.tar.gz 2>&1 || true
 "
 
 echo -e "${GREEN}✓ Installed on Org2${NC}"
 echo ""
 
-# Step 7: Get package IDs
-echo -e "${YELLOW}Step 7: Getting package IDs...${NC}"
-
-PACKAGE_ID_ORG1=$(docker exec cli bash -c "
-export CORE_PEER_LOCALMSPID=Org1MSP
-export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
-peer lifecycle chaincode queryinstalled | grep ${CHAINCODE_LABEL} | sed 's/^Package ID: //' | sed 's/, Label:.*$//'
-")
-
-PACKAGE_ID_ORG2=$(docker exec cli bash -c "
-export CORE_PEER_LOCALMSPID=Org2MSP
-export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
-peer lifecycle chaincode queryinstalled | grep ${CHAINCODE_LABEL} | sed 's/^Package ID: //' | sed 's/, Label:.*$//'
-")
-
-echo "Org1 Package ID: $PACKAGE_ID_ORG1"
-echo "Org2 Package ID: $PACKAGE_ID_ORG2"
-echo -e "${GREEN}✓ Package IDs retrieved${NC}"
+# Use the same package ID for both since we used the same package file
+PACKAGE_ID_ORG1=$PACKAGE_ID
+PACKAGE_ID_ORG2=$PACKAGE_ID
 echo ""
 
 # Step 8: Start chaincode containers
 echo -e "${YELLOW}Step 8: Starting chaincode containers...${NC}"
 
 # Start chaincode containers
+# Force recreate containers to ensure env update
 export CHAINCODE_ID_ORG1=$PACKAGE_ID_ORG1
 export CHAINCODE_ID_ORG2=$PACKAGE_ID_ORG2
-
+docker-compose down
 docker-compose up -d
 
 echo -e "${GREEN}✓ Chaincode containers started${NC}"
@@ -132,7 +140,7 @@ echo ""
 
 # Wait for containers to be ready
 echo -e "${YELLOW}Waiting for chaincode containers to be ready...${NC}"
-sleep 5
+sleep 10
 echo ""
 
 # Step 9: Approve for Org1
@@ -142,7 +150,7 @@ export CORE_PEER_LOCALMSPID=Org1MSP
 export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
 export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
 export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
-export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
 
 peer lifecycle chaincode approveformyorg \
   -o orderer.example.com:7050 \
@@ -150,7 +158,7 @@ peer lifecycle chaincode approveformyorg \
   --name ${CHAINCODE_NAME} \
   --version ${CHAINCODE_VERSION} \
   --package-id ${PACKAGE_ID_ORG1} \
-  --sequence 1 \
+  --sequence ${SEQUENCE} \
   --tls \
   --cafile \$ORDERER_CA
 "
@@ -165,7 +173,7 @@ export CORE_PEER_LOCALMSPID=Org2MSP
 export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
 export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
 export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
-export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
 
 peer lifecycle chaincode approveformyorg \
   -o orderer.example.com:7050 \
@@ -173,7 +181,7 @@ peer lifecycle chaincode approveformyorg \
   --name ${CHAINCODE_NAME} \
   --version ${CHAINCODE_VERSION} \
   --package-id ${PACKAGE_ID_ORG2} \
-  --sequence 1 \
+  --sequence ${SEQUENCE} \
   --tls \
   --cafile \$ORDERER_CA
 "
@@ -188,14 +196,14 @@ export CORE_PEER_LOCALMSPID=Org1MSP
 export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
 export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
 export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
-export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
 
 peer lifecycle chaincode commit \
   -o orderer.example.com:7050 \
   --channelID ${CHANNEL_NAME} \
   --name ${CHAINCODE_NAME} \
   --version ${CHAINCODE_VERSION} \
-  --sequence 1 \
+  --sequence ${SEQUENCE} \
   --tls \
   --cafile \$ORDERER_CA \
   --peerAddresses peer0.org1.example.com:7051 \
@@ -212,7 +220,7 @@ echo -e "${YELLOW}Step 12: Initializing ledger...${NC}"
 docker exec cli bash -c "
 export CORE_PEER_LOCALMSPID=Org1MSP
 export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
-export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
 
 peer chaincode invoke \
   -o orderer.example.com:7050 \

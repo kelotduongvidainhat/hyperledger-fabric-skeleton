@@ -47,6 +47,7 @@ All documentation is located in the **[`docs/`](docs/)** folder:
 - **[docs/SETUP_COMPLETE.md](docs/SETUP_COMPLETE.md)** - Complete system overview
 - **[docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)** - Chaincode deployment guide
 - **[docs/QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** - Quick command reference
+- **[docs/IDENTITY_MANAGEMENT.md](docs/IDENTITY_MANAGEMENT.md)** - Fabric CA, ABAC, and CRL guide
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
 ## Getting Started
@@ -66,7 +67,7 @@ docker exec cli peer chaincode query -C mychannel -n asset-transfer -c '{"Args":
 ### 3. Create a New Asset
 ```bash
 docker exec cli bash -c '
-export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
 
 peer chaincode invoke \
   -o orderer.example.com:7050 \

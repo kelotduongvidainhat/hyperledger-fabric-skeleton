@@ -10,6 +10,8 @@ connection.json
 # Binaries
 bin/
 chaincode/asset-transfer/asset-transfer
+backend/backend-api
+*.pid
 
 # IDEs
 .vscode/

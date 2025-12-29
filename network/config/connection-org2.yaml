@@ -1,0 +1,17 @@
+name: "org2-network"
+version: "1.0.0"
+client:
+  organization: Org2
+organizations:
+  Org2:
+    mspid: Org2MSP
+    peers:
+      - peer0.org2.example.com
+peers:
+  peer0.org2.example.com:
+    url: grpcs://localhost:9051
+    tlsCACerts:
+      path: "/home/qwe/hyperledger-fabric-skeleton/network/crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt"
+    grpcOptions:
+      ssl-target-name-override: peer0.org2.example.com
+      hostnameOverride: peer0.org2.example.com

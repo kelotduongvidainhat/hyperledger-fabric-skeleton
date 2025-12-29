@@ -3,7 +3,7 @@ version: '2'
 networks:
   test:
     external:
-      name: docker_test
+      name: fabric-network
 
 services:
   asset-transfer-org1:
@@ -11,8 +11,8 @@ services:
     image: asset-transfer:1.0
     environment:
       - CHAINCODE_SERVER_ADDRESS=0.0.0.0:9999
-      - CHAINCODE_ID=asset-transfer_1.0:72532aa0858d4c2d11fe7355936842ce76118efb89ad23f52200c9938d4e8d6f
-      - CORE_CHAINCODE_ID_NAME=asset-transfer_1.0:72532aa0858d4c2d11fe7355936842ce76118efb89ad23f52200c9938d4e8d6f
+      - CHAINCODE_ID=${CHAINCODE_ID_ORG1}
+      - CORE_CHAINCODE_ID_NAME=${CHAINCODE_ID_ORG1}
     ports:
       - "9991:9999"
     networks:
@@ -23,8 +23,8 @@ services:
     image: asset-transfer:1.0
     environment:
       - CHAINCODE_SERVER_ADDRESS=0.0.0.0:9999
-      - CHAINCODE_ID=asset-transfer_1.0:72532aa0858d4c2d11fe7355936842ce76118efb89ad23f52200c9938d4e8d6f
-      - CORE_CHAINCODE_ID_NAME=asset-transfer_1.0:72532aa0858d4c2d11fe7355936842ce76118efb89ad23f52200c9938d4e8d6f
+      - CHAINCODE_ID=${CHAINCODE_ID_ORG2}
+      - CORE_CHAINCODE_ID_NAME=${CHAINCODE_ID_ORG2}
     ports:
       - "9992:9999"
     networks:
