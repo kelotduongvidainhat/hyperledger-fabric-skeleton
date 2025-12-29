@@ -29,6 +29,8 @@ The project runs a 2-Organization Hyperledger Fabric network (v2.5) with Raft co
 | **Org2 CA** | `ca_org2` | 8054 | Certificate Authority for Org2 |
 | **Orderer CA** | `ca_orderer` | 9054 | Certificate Authority for Orderer |
 | **CouchDB** | `couchdb0`, `couchdb1` | 5984, 7984 | World State Databases |
+| **Backend API** | `backend-api` | 8080 | Go REST API (Gin + Fabric Gateway) |
+| **Frontend** | `vite-react` | 5173 | React DApp Interface |
 
 ## Current Status
 
@@ -38,6 +40,8 @@ The project runs a 2-Organization Hyperledger Fabric network (v2.5) with Raft co
 - [x] **Chaincode Deployed**: `asset-transfer` v1.0 (CaaS) - ✅ **OPERATIONAL**
 - [x] **Fabric CA**: 3 CAs running (v1.5.15)
 - [x] **CouchDB**: 2 instances running (v3.4.2)
+- [x] **Backend API**: REST API with Dynamic Identity Support (Port 8080)
+- [x] **Frontend**: React Dashboard for Asset Management (Port 5173)
 
 ## 📚 Documentation
 
@@ -47,8 +51,9 @@ All documentation is located in the **[`docs/`](docs/)** folder:
 - **[docs/SETUP_COMPLETE.md](docs/SETUP_COMPLETE.md)** - Complete system overview
 - **[docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)** - Chaincode deployment guide
 - **[docs/QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** - Quick command reference
-- **[docs/IDENTITY_MANAGEMENT.md](docs/IDENTITY_MANAGEMENT.md)** - Fabric CA, ABAC, and CRL guide
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- [docs/IDENTITY_MANAGEMENT.md](docs/IDENTITY_MANAGEMENT.md) - Fabric CA, ABAC, and CRL guide
+- [docs/FULL_STACK_GUIDE.md](docs/FULL_STACK_GUIDE.md) - Frontend & Backend Architecture
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
 ## Getting Started
 

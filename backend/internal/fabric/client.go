@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"path/filepath"
 	"time"
 
 	"github.com/hyperledger/fabric-gateway/pkg/client"
@@ -16,8 +15,6 @@ import (
 const (
 	mspID         = "Org1MSP"
 	cryptoPath    = "/home/qwe/hyperledger-fabric-skeleton/network/crypto-config/peerOrganizations/org1.example.com"
-	certPath      = cryptoPath + "/users/Admin@org1.example.com/msp/signcerts/cert.pem"
-	keyPath       = cryptoPath + "/users/Admin@org1.example.com/msp/keystore"
 	tlsCertPath   = cryptoPath + "/peers/peer0.org1.example.com/tls/ca.crt"
 	peerEndpoint  = "localhost:7051"
 	gatewayPeer   = "peer0.org1.example.com"
@@ -25,38 +22,57 @@ const (
 	chaincodeName = "asset-transfer"
 )
 
-// FabricClient holds the gateway connection
+// FabricClient manages the connection to the Fabric network
 type FabricClient struct {
 	Connection *grpc.ClientConn
-	Gateway    *client.Gateway
-	Network    *client.Network
-	Contract   *client.Contract
+	Store      *EnrollmentStore
 }
 
-// NewFabricClient initializes a connection to the Fabric network
+// NewFabricClient initializes the gRPC connection and enrollment store
 func NewFabricClient() (*FabricClient, error) {
-	// The gRPC client connection should be shared by all Gateway connections to this endpoint
 	clientConnection, err := newGrpcConnection()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC connection: %w", err)
 	}
 
-	id, err := newIdentity()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create identity: %w", err)
+	// Initialize store pointing to crypto-config for now (User1/Admin simulation)
+	// In production, this would point to a secure wallet directory
+	store := NewEnrollmentStore(cryptoPath + "/users")
+
+	return &FabricClient{
+		Connection: clientConnection,
+		Store:      store,
+	}, nil
+}
+
+// executeAction creates a gateway connection for the user and runs the action
+func (f *FabricClient) executeAction(userID string, action func(*client.Contract) (interface{}, error)) (interface{}, error) {
+	// 1. Load Identity
+	// For simulation, we map userID "admin" -> Admin@org1.example.com
+	// and "user1" -> User1@org1.example.com
+	// If userID is empty, default to Admin
+	var label string
+	if userID == "user1" {
+		label = "user2@org1.example.com"
+	} else {
+		label = "Admin@org1.example.com"
 	}
 
-	sign, err := newSign()
+	id, err := f.Store.GetIdentity(label, mspID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create signature: %w", err)
+		return nil, fmt.Errorf("failed to load identity for %s: %w", userID, err)
 	}
 
-	// Create a Gateway connection for this client identity
+	sign, err := f.Store.GetSigner(label)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load signer for %s: %w", userID, err)
+	}
+
+	// 2. Connect to Gateway
 	gw, err := client.Connect(
 		id,
 		client.WithSign(sign),
-		client.WithClientConnection(clientConnection),
-		// Default timeouts for different gRPC calls
+		client.WithClientConnection(f.Connection),
 		client.WithEvaluateTimeout(5*time.Second),
 		client.WithEndorseTimeout(15*time.Second),
 		client.WithSubmitTimeout(5*time.Second),
@@ -65,16 +81,14 @@ func NewFabricClient() (*FabricClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to gateway: %w", err)
 	}
+	defer gw.Close()
 
+	// 3. Get Contract
 	network := gw.GetNetwork(channelName)
 	contract := network.GetContract(chaincodeName)
 
-	return &FabricClient{
-		Connection: clientConnection,
-		Gateway:    gw,
-		Network:    network,
-		Contract:   contract,
-	}, nil
+	// 4. Run Action
+	return action(contract)
 }
 
 // newGrpcConnection creates a gRPC connection to the Gateway server.
@@ -96,21 +110,6 @@ func newGrpcConnection() (*grpc.ClientConn, error) {
 	return connection, nil
 }
 
-// newIdentity creates a client identity for this Gateway connection using an X.509 certificate.
-func newIdentity() (*identity.X509Identity, error) {
-	certificate, err := loadCertificate(certPath)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := identity.NewX509Identity(mspID, certificate)
-	if err != nil {
-		return nil, err
-	}
-
-	return id, nil
-}
-
 func loadCertificate(filename string) (*x509.Certificate, error) {
 	certificatePEM, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -119,40 +118,8 @@ func loadCertificate(filename string) (*x509.Certificate, error) {
 	return identity.CertificateFromPEM(certificatePEM)
 }
 
-// newSign creates a function that generates a digital signature from a message digest using a private key.
-func newSign() (identity.Sign, error) {
-	files, err := ioutil.ReadDir(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read private key directory: %w", err)
-	}
-	if len(files) == 0 {
-		return nil, fmt.Errorf("no private key file found in %s", keyPath)
-	}
-
-	path := filepath.Join(keyPath, files[0].Name())
-	privateKeyPEM, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read private key file: %w", err)
-	}
-
-	privateKey, err := identity.PrivateKeyFromPEM(privateKeyPEM)
-	if err != nil {
-		return nil, err
-	}
-
-	sign, err := identity.NewPrivateKeySign(privateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return sign, nil
-}
-
-// Close closes the gateway connection
+// Close closes the gRPC connection
 func (f *FabricClient) Close() {
-	if f.Gateway != nil {
-		f.Gateway.Close()
-	}
 	if f.Connection != nil {
 		f.Connection.Close()
 	}

@@ -1,0 +1,40 @@
+import axios from 'axios';
+
+const API_URL = 'http://localhost:8080';
+
+const api = axios.create({
+    baseURL: API_URL,
+});
+
+export const setAuthToken = (userId) => {
+    if (userId) {
+        api.defaults.headers.common['X-User-ID'] = userId;
+    } else {
+        delete api.defaults.headers.common['X-User-ID'];
+    }
+};
+
+export const fetchAssets = async () => {
+    const response = await api.get('/assets');
+    return response.data;
+};
+
+export const fetchAsset = async (id) => {
+    const response = await api.get(`/assets/${id}`);
+    return response.data;
+};
+
+export const createAsset = async (assetData) => {
+    const response = await api.post('/assets', assetData);
+    return response.data;
+};
+
+export const transferAsset = async (id, newOwner) => {
+    const response = await api.put(`/assets/${id}/transfer`, { newOwner });
+    return response.data;
+};
+
+export const fetchIdentities = async () => {
+    const response = await api.get('/admin/identities');
+    return response.data;
+};

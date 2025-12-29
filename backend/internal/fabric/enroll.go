@@ -20,7 +20,13 @@ func NewEnrollmentStore(baseDir string) *EnrollmentStore {
 
 // GetIdentity returns an X509Identity from the store
 func (s *EnrollmentStore) GetIdentity(label string, mspID string) (*identity.X509Identity, error) {
-	certPath := filepath.Join(s.BaseDir, label, "cert.pem")
+	// Try standard MSP structure first
+	certPath := filepath.Join(s.BaseDir, label, "msp", "signcerts", "cert.pem")
+	if _, err := os.Stat(certPath); os.IsNotExist(err) {
+		// Fallback to flat structure
+		certPath = filepath.Join(s.BaseDir, label, "cert.pem")
+	}
+
 	certPEM, err := ioutil.ReadFile(certPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read certificate: %w", err)
@@ -36,7 +42,13 @@ func (s *EnrollmentStore) GetIdentity(label string, mspID string) (*identity.X50
 
 // GetSigner returns a signing function from the store
 func (s *EnrollmentStore) GetSigner(label string) (identity.Sign, error) {
-	keyDir := filepath.Join(s.BaseDir, label, "keystore")
+	// Try standard MSP structure first
+	keyDir := filepath.Join(s.BaseDir, label, "msp", "keystore")
+	if _, err := os.Stat(keyDir); os.IsNotExist(err) {
+		// Fallback to flat structure
+		keyDir = filepath.Join(s.BaseDir, label, "keystore")
+	}
+
 	files, err := ioutil.ReadDir(keyDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read keystore: %w", err)
@@ -46,6 +58,7 @@ func (s *EnrollmentStore) GetSigner(label string) (identity.Sign, error) {
 		return nil, fmt.Errorf("no key files in %s", keyDir)
 	}
 
+	// Just pick the first file in keystore
 	keyPath := filepath.Join(keyDir, files[0].Name())
 	keyPEM, err := ioutil.ReadFile(keyPath)
 	if err != nil {
