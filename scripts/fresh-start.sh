@@ -36,6 +36,61 @@ fi
 echo ""
 
 # ============================================================================
+# PHASE 0: PRE-FLIGHT CHECK
+# ============================================================================
+echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║ PHASE 0: SYSTEM HEALTH CHECK                              ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+check_cmd() {
+    if ! command -v "$1" &> /dev/null; then
+        echo -e "${RED}✗ $1 is not installed${NC}"
+        echo "Please install $1 before proceeding."
+        exit 1
+    else
+        # Try different version flags
+        VERSION=$($1 --version 2>/dev/null || $1 -v 2>/dev/null || echo "detected")
+        echo -e "  ✓ $1 is installed ($VERSION)"
+    fi
+}
+
+echo -e "${YELLOW}→ Checking Prerequisites...${NC}"
+check_cmd docker
+check_cmd docker-compose
+check_cmd go
+check_cmd node
+check_cmd jq
+check_cmd curl
+echo ""
+
+echo -e "${YELLOW}→ Checking Docker Images...${NC}"
+REQUIRED_IMAGES=(
+    "hyperledger/fabric-peer:2.5"
+    "hyperledger/fabric-orderer:2.5"
+    "hyperledger/fabric-ccenv:2.5"
+    "hyperledger/fabric-tools:2.5"
+    "hyperledger/fabric-ca:1.5"
+    "couchdb:3.3"
+    "postgres:15"
+)
+
+for img in "${REQUIRED_IMAGES[@]}"; do
+    # Check if image exists (ignoring tag if needed, but here exact match preferred)
+    # Using docker images -q to check existence
+    if [[ "$(docker images -q $img 2> /dev/null)" == "" ]]; then
+        echo -e "${YELLOW}  ⚠ Image $img missing. Attempting pull...${NC}"
+        docker pull $img || echo -e "${RED}  ✗ Failed to pull $img${NC}"
+    else
+        echo -e "  ✓ Image $img found"
+    fi
+done
+echo ""
+echo -e "${GREEN}✓ Phase 0 Complete: System ready${NC}"
+echo ""
+
+
+# ============================================================================
 # PHASE 1: STOP ALL RUNNING SERVICES
 # ============================================================================
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
