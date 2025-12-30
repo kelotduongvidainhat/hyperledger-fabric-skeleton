@@ -83,9 +83,51 @@ check_go_version() {
 check_cmd docker
 check_cmd docker-compose
 check_go_version
-check_cmd node
-check_cmd jq
-check_cmd curl
+
+ensure_pkg() {
+    CMD=$1
+    PKG=${2:-$1}
+    if ! command -v "$CMD" &> /dev/null; then
+        echo -e "${YELLOW}  ⚠ $CMD is missing. Auto-installing...${NC}"
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update -qq 2>/dev/null || true
+            sudo apt-get install -y "$PKG"
+        else
+            echo -e "${RED}  ✗ Cannot install $PKG (no apt-get). Install manually.${NC}"
+            exit 1
+        fi
+    fi
+     # Verify
+    if ! command -v "$CMD" &> /dev/null; then
+         echo -e "${RED}  ✗ Failed to install $CMD.${NC}"
+         exit 1
+    fi
+    # Use existing check_cmd to print version
+    # Try different version flags
+    VERSION=$($CMD --version 2>/dev/null || $CMD -v 2>/dev/null || echo "detected")
+    echo -e "  ✓ $CMD is installed ($VERSION)"
+}
+
+# Node.js special handling
+if ! command -v node &> /dev/null; then
+    echo -e "${YELLOW}  ⚠ node is missing. Auto-installing Node.js 18.x...${NC}"
+    if command -v curl &> /dev/null && command -v apt-get &> /dev/null; then
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - 2>/dev/null
+        sudo apt-get install -y nodejs
+    else
+        echo -e "${RED}  ✗ Cannot auto-install Node.js. Please install Node.js 18+ manually.${NC}"
+        exit 1
+    fi
+fi
+if ! command -v node &> /dev/null; then
+    echo -e "${RED}  ✗ Node.js installation failed.${NC}"
+    exit 1
+fi
+NODE_VER=$(node -v)
+echo -e "  ✓ node is installed ($NODE_VER)"
+
+ensure_pkg jq
+ensure_pkg curl
 echo ""
 
 echo -e "${YELLOW}→ Checking Fabric Binaries...${NC}"
