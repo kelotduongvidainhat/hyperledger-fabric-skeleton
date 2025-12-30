@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"time"
 
 	"github.com/hyperledger/fabric-gateway/pkg/client"
@@ -71,14 +72,13 @@ func NewFabricClient() (*FabricClient, error) {
 // executeAction creates a gateway connection for the user and runs the action
 func (f *FabricClient) executeAction(userID string, action func(*client.Contract) (interface{}, error)) (interface{}, error) {
 	// 1. Load Identity
-	// For simulation, we map userID "admin" -> Admin@org1.example.com
-	// and "user1" -> User1@org1.example.com
-	// If userID is empty, default to Admin
+	// Map userID to the enrolled identity
 	var label string
-	if userID == "user1" {
-		label = "user2@org1.example.com"
-	} else {
+	if userID == "" || strings.ToLower(userID) == "admin" {
 		label = "Admin@org1.example.com"
+	} else {
+		// Construct label dynamically: e.g. "user1" -> "user1@org1.example.com"
+		label = fmt.Sprintf("%s@org1.example.com", userID)
 	}
 
 	id, err := f.Store.GetIdentity(label, mspID)
@@ -139,6 +139,25 @@ func loadCertificate(filename string) (*x509.Certificate, error) {
 		return nil, fmt.Errorf("failed to read certificate file: %w", err)
 	}
 	return identity.CertificateFromPEM(certificatePEM)
+}
+
+// GetAssetHistory returns the history of the asset
+func (f *FabricClient) GetAssetHistory(userID, assetID string) (string, error) {
+	result, err := f.executeAction(userID, func(contract *client.Contract) (interface{}, error) {
+		result, err := contract.EvaluateTransaction("GetAssetHistory", assetID)
+		if err != nil {
+			return nil, err // Return original error for clearer debugging
+		}
+		if len(result) == 0 {
+			return "[]", nil
+		}
+		return string(result), nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
 }
 
 // Close closes the gRPC connection

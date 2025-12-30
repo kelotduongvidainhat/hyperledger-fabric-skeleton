@@ -199,6 +199,56 @@ func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface
 	return assets, nil
 }
 
+// HistoryRecord structure used for returning the history of an asset
+type HistoryRecord struct {
+	TxId      string `json:"txId"`
+	Timestamp string `json:"timestamp"`
+	IsDelete  bool   `json:"isDelete"`
+	Record    *Asset `json:"record"`
+}
+
+// GetAssetHistory returns the chain of custody for an asset since issuance.
+func (s *SmartContract) GetAssetHistory(ctx contractapi.TransactionContextInterface, assetID string) ([]HistoryRecord, error) {
+	log.Printf("GetAssetHistory: ID %v", assetID)
+
+	resultsIterator, err := ctx.GetStub().GetHistoryForKey(assetID)
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+
+	var records []HistoryRecord
+	for resultsIterator.HasNext() {
+		response, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		var asset Asset
+		if len(response.Value) > 0 {
+			err = json.Unmarshal(response.Value, &asset)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		timestamp, err := response.Timestamp.AsTime(), error(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		record := HistoryRecord{
+			TxId:      response.TxId,
+			Timestamp: timestamp.String(),
+			IsDelete:  response.IsDelete,
+			Record:    &asset,
+		}
+		records = append(records, record)
+	}
+
+	return records, nil
+}
+
 func main() {
 	// Create the chaincode
 	assetChaincode, err := contractapi.NewChaincode(&SmartContract{})

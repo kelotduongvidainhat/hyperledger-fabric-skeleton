@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { fetchAssets, fetchAssetsFromDB, createAsset, transferAsset, setAuthToken } from '../services/api';
+import { useState, useEffect } from 'react';
+import { fetchAssets, fetchAssetsFromDB, createAsset, transferAsset, setAuthToken, fetchIdentities, fetchAssetHistory } from '../services/api';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/card';
-import { RefreshCw, Send, Plus, Database, link } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/card';
+import { RefreshCw, Send, Plus, History, X } from 'lucide-react';
 
 export default function AssetDashboard() {
     const [currentUser, setCurrentUser] = useState('admin');
+    const [identities, setIdentities] = useState([]);
     const [dataSource, setDataSource] = useState('blockchain'); // 'blockchain' | 'database'
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -15,10 +16,30 @@ export default function AssetDashboard() {
     });
     const [transferData, setTransferData] = useState({ id: '', newOwner: '' });
 
+    // History Modal State
+    const [historyModalOpen, setHistoryModalOpen] = useState(false);
+    const [selectedAssetHistory, setSelectedAssetHistory] = useState([]);
+    const [selectedAssetId, setSelectedAssetId] = useState('');
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
+    useEffect(() => {
+        loadIdentities();
+    }, []);
+
     useEffect(() => {
         setAuthToken(currentUser);
         loadAssets();
     }, [currentUser, dataSource]);
+
+    const loadIdentities = async () => {
+        try {
+            const data = await fetchIdentities();
+            setIdentities(data);
+        } catch (error) {
+            console.error("Failed to fetch identities", error);
+            setIdentities(['admin', 'user1']);
+        }
+    };
 
     const loadAssets = async () => {
         setLoading(true);
@@ -63,6 +84,35 @@ export default function AssetDashboard() {
         }
     };
 
+    const handleShowHistory = async (assetId) => {
+        setSelectedAssetId(assetId);
+        setHistoryModalOpen(true);
+        setLoadingHistory(true);
+        try {
+            const history = await fetchAssetHistory(assetId);
+            setSelectedAssetHistory(history);
+        } catch (error) {
+            console.error("Failed to fetch history", error);
+            alert("Failed to fetch history: " + (error.response?.data?.error || error.message));
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    const formatTimestamp = (ts) => {
+        if (!ts) return 'N/A';
+        // Handle Go default time string: "2025-12-30 03:41:51.76... +0000 UTC"
+        // Try to convert to ISO: Replace " +0000 UTC" with "Z" and space with "T"
+        try {
+            const iso = ts.replace(' +0000 UTC', 'Z').replace(' ', 'T');
+            const d = new Date(iso);
+            if (!isNaN(d.getTime())) return d.toLocaleString();
+            return ts;
+        } catch (e) {
+            return ts;
+        }
+    };
+
     return (
         <div className="container mx-auto p-4 space-y-8">
             <header className="flex justify-between items-center mb-8">
@@ -91,11 +141,15 @@ export default function AssetDashboard() {
                         value={currentUser}
                         onChange={(e) => setCurrentUser(e.target.value)}
                     >
-                        <option value="admin">Admin (Org1)</option>
-                        <option value="user1">User1 (Org1)</option>
+                        {identities.map(user => (
+                            <option key={user} value={user}>
+                                {user.charAt(0).toUpperCase() + user.slice(1)} (Org1)
+                            </option>
+                        ))}
                     </select>
                 </div>
             </header>
+
 
             <div className="grid md:grid-cols-2 gap-8">
                 {/* Create Asset Form */}
@@ -148,6 +202,7 @@ export default function AssetDashboard() {
                                     <th scope="col" className="px-6 py-3">Size</th>
                                     <th scope="col" className="px-6 py-3">Owner</th>
                                     <th scope="col" className="px-6 py-3">Value</th>
+                                    <th scope="col" className="px-6 py-3">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -158,16 +213,69 @@ export default function AssetDashboard() {
                                         <td className="px-6 py-4">{asset.Size}</td>
                                         <td className="px-6 py-4">{asset.Owner}</td>
                                         <td className="px-6 py-4">${asset.AppraisedValue}</td>
+                                        <td className="px-6 py-4">
+                                            <Button variant="ghost" size="sm" onClick={() => handleShowHistory(asset.ID)}>
+                                                <History className="w-4 h-4 mr-1" /> History
+                                            </Button>
+                                        </td>
                                     </tr>
                                 ))}
                                 {assets.length === 0 && (
-                                    <tr><td colSpan="5" className="text-center py-4">No assets found</td></tr>
+                                    <tr><td colSpan="6" className="text-center py-4">No assets found</td></tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
                 </CardContent>
             </Card>
+
+            {/* History Modal */}
+            {historyModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                        <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h2 className="text-xl font-bold flex items-center gap-2">
+                                <History className="w-5 h-5" /> Asset History: {selectedAssetId}
+                            </h2>
+                            <Button variant="ghost" size="icon" onClick={() => setHistoryModalOpen(false)}>
+                                <X className="w-5 h-5" />
+                            </Button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1">
+                            {loadingHistory ? (
+                                <div className="flex justify-center p-8"><RefreshCw className="w-8 h-8 animate-spin text-blue-500" /></div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {selectedAssetHistory.length === 0 ? (
+                                        <p className="text-center text-gray-500">No history found.</p>
+                                    ) : (
+
+                                        selectedAssetHistory.map((record, index) => (
+                                            <div key={index} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <span className="text-xs font-mono bg-gray-200 px-2 py-1 rounded text-gray-700 truncate max-w-[200px]" title={record.txId}>
+                                                        TX: {record.txId ? record.txId.substring(0, 10) : '???'}...
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">{formatTimestamp(record.timestamp)}</span>
+                                                </div>
+                                                {record.record ? (
+                                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                                        <div><span className="font-semibold">Owner:</span> {record.record.Owner}</div>
+                                                        <div><span className="font-semibold">Value:</span> ${record.record.AppraisedValue}</div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-sm text-gray-500 italic">No record data</div>
+                                                )}
+                                                {record.isDelete && <div className="mt-2 text-red-500 text-xs font-bold">ASSET DELETED</div>}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -29,7 +31,7 @@ func main() {
 	defer fabricClient.Close()
 
 	// 2. Initialize Database
-	connStr := "postgres://postgres:password@localhost:5432/fabric_assets?sslmode=disable"
+	connStr := "postgres://postgres:password@localhost:5432/fabricdb?sslmode=disable"
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Error connecting to database: %v", err)
@@ -72,6 +74,7 @@ func main() {
 	r.GET("/assets/:id", getAsset)
 	r.POST("/assets", createAsset)
 	r.PUT("/assets/:id/transfer", transferAsset)
+	r.GET("/assets/:id/history", getAssetHistory)
 
 	// Admin Routes
 	r.GET("/admin/identities", listIdentities)
@@ -176,9 +179,46 @@ func transferAsset(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Asset transferred successfully"})
 }
 
+func getAssetHistory(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	id := c.Param("id")
+	history, err := fabricClient.GetAssetHistory(userID, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	
+	// history is a JSON string, we need to unmarshal it to return valid JSON
+	// or we can just parse it into interface{} and return it directly.
+	// Since Fabric returns a JSON string, if we send it as string in JSON, it will be double escaped.
+	// But let's rely on JSON raw message if we want, or just let client handle it string.
+	// Actually, client.go returns string. Let's send it as raw JSON.
+	
+	c.Header("Content-Type", "application/json")
+	c.String(http.StatusOK, history)
+}
+
 
 func listIdentities(c *gin.Context) {
-	// Simple mock for now, or read from file system
-	identities := []string{"admin", "user1", "user2"}
+	usersDir := "/home/qwe/hyperledger-fabric-skeleton/network/crypto-config/peerOrganizations/org1.example.com/users"
+	files, err := ioutil.ReadDir(usersDir)
+	if err != nil {
+		log.Printf("Error reading users dir: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list identities"})
+		return
+	}
+
+	var identities []string
+	for _, f := range files {
+		if f.IsDir() {
+			// Folder name is like "user1@org1.example.com"
+			// Extract username part
+			name := f.Name()
+			parts := strings.Split(name, "@")
+			if len(parts) > 0 {
+				identities = append(identities, parts[0])
+			}
+		}
+	}
 	c.JSON(http.StatusOK, identities)
 }

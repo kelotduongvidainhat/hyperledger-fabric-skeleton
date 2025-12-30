@@ -39,6 +39,12 @@ export const fetchIdentities = async () => {
     return response.data;
 };
 
+export const fetchAssetHistory = async (id) => {
+    const response = await api.get(`/assets/${id}/history`);
+    console.log("fetchAssetHistory response:", response.data);
+    return response.data;
+};
+
 export const fetchAssetsFromDB = async () => {
     const response = await api.get('/api/query/assets'); // Modified specific to project structure
     // Normalize data structure if needed to match blockchain response
