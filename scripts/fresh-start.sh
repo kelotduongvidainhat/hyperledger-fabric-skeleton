@@ -57,9 +57,32 @@ check_cmd() {
 
 echo -e "${YELLOW}→ Checking Prerequisites...${NC}"
 
+
+check_go_version() {
+    if ! command -v go &> /dev/null; then
+        echo -e "${RED}✗ go is not installed${NC}"
+        echo "Please install Go (v1.20 or newer) before proceeding."
+        exit 1
+    fi
+    GO_FULL_VERSION=$(go version)
+    GO_VERSION_STR=$(go version | awk '{print $3}' | sed 's/go//')
+    
+    # Parse Major and Minor
+    MAJOR=$(echo $GO_VERSION_STR | cut -d. -f1)
+    MINOR=$(echo $GO_VERSION_STR | cut -d. -f2)
+    
+    # Require 1.25+
+    if [ "$MAJOR" -eq 1 ] && [ "$MINOR" -lt 25 ]; then
+         echo -e "${RED}✗ Go version $GO_VERSION_STR is too old. Required: 1.25+${NC}"
+         echo "Current version: $GO_FULL_VERSION"
+         exit 1
+    fi
+    echo -e "  ✓ go is installed ($GO_VERSION_STR) - Compatible"
+}
+
 check_cmd docker
 check_cmd docker-compose
-check_cmd go
+check_go_version
 check_cmd node
 check_cmd jq
 check_cmd curl
