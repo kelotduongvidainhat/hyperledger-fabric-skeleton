@@ -56,12 +56,24 @@ check_cmd() {
 }
 
 echo -e "${YELLOW}→ Checking Prerequisites...${NC}"
+
 check_cmd docker
 check_cmd docker-compose
 check_cmd go
 check_cmd node
 check_cmd jq
 check_cmd curl
+echo ""
+
+echo -e "${YELLOW}→ Checking Fabric Binaries...${NC}"
+if [ ! -f "${PROJECT_ROOT}/bin/peer" ] || [ ! -f "${PROJECT_ROOT}/bin/fabric-ca-client" ] || [ ! -f "${PROJECT_ROOT}/bin/configtxgen" ]; then
+    echo -e "${YELLOW}  ⚠ Fabric binaries missing or incomplete. Downloading (Fabric 2.5.14, CA 1.5.15)...${NC}"
+    # Download binaries only
+    curl -sSL https://bit.ly/2ysbOFE | bash -s -- --fabric-version 2.5.14 --ca-version 1.5.15 binary
+    echo -e "${GREEN}  ✓ Fabric binaries downloaded${NC}"
+else
+    echo -e "  ✓ Fabric binaries found"
+fi
 echo ""
 
 echo -e "${YELLOW}→ Checking Docker Images...${NC}"
