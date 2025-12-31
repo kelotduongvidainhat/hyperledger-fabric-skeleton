@@ -37,28 +37,71 @@ echo -e "${YELLOW}→ Syncing assets to database...${NC}"
 
 echo "$ASSETS_JSON" | jq -c '.[]' | while read -r asset; do
     ID=$(echo "$asset" | jq -r '.ID')
-    COLOR=$(echo "$asset" | jq -r '.Color')
-    SIZE=$(echo "$asset" | jq -r '.Size')
+    NAME=$(echo "$asset" | jq -r '.Name')
+    CATEGORY=$(echo "$asset" | jq -r '.Category')
     OWNER=$(echo "$asset" | jq -r '.Owner')
-    VALUE=$(echo "$asset" | jq -r '.AppraisedValue')
+    STATUS=$(echo "$asset" | jq -r '.Status')
+    UPDATED=$(echo "$asset" | jq -r '.Updated')
+    UPDATED_BY=$(echo "$asset" | jq -r '.UpdatedBy')
     
     # Insert or update in database
     docker exec docker-postgres-1 psql -U postgres -d fabricdb -c \
-        "INSERT INTO assets (id, color, size, owner, appraised_value, last_updated)
-         VALUES ('$ID', '$COLOR', $SIZE, '$OWNER', $VALUE, NOW())
+        "INSERT INTO assets (id, name, category, owner, status, updated, updated_by, last_updated)
+         VALUES ('$ID', '$NAME', '$CATEGORY', '$OWNER', '$STATUS', '$UPDATED', '$UPDATED_BY', NOW())
          ON CONFLICT (id) DO UPDATE SET
-            color = EXCLUDED.color,
-            size = EXCLUDED.size,
+            name = EXCLUDED.name,
+            category = EXCLUDED.category,
             owner = EXCLUDED.owner,
-            appraised_value = EXCLUDED.appraised_value,
+            status = EXCLUDED.status,
+            updated = EXCLUDED.updated,
+            updated_by = EXCLUDED.updated_by,
             last_updated = NOW();" > /dev/null 2>&1
     
     if [ $? -eq 0 ]; then
-        echo -e "  ${GREEN}✓${NC} Synced: $ID"
+        echo -e "  ${GREEN}✓${NC} Synced Asset: $ID"
     else
-        echo -e "  ${RED}✗${NC} Failed: $ID"
+        echo -e "  ${RED}✗${NC} Failed Asset: $ID"
     fi
 done
+
+# Sync users
+echo -e "${YELLOW}→ Fetching all users from blockchain...${NC}"
+USERS_JSON=$(docker exec cli peer chaincode query -C mychannel -n asset-transfer -c '{"Args":["GetAllUsers"]}' 2>/dev/null)
+
+if [ -n "$USERS_JSON" ] && [ "$USERS_JSON" != "null" ]; then
+    USER_COUNT=$(echo "$USERS_JSON" | jq '. | length')
+    echo -e "${GREEN}  ✓ Found $USER_COUNT users on blockchain${NC}"
+    echo -e "${YELLOW}→ Syncing users to database...${NC}"
+
+    echo "$USERS_JSON" | jq -c '.[]' | while read -r user; do
+        ID=$(echo "$user" | jq -r '.ID')
+        NAME=$(echo "$user" | jq -r '.Name')
+        ROLE=$(echo "$user" | jq -r '.Role')
+        STATUS=$(echo "$user" | jq -r '.Status')
+        UPDATED=$(echo "$user" | jq -r '.Updated')
+        UPDATED_BY=$(echo "$user" | jq -r '.UpdatedBy')
+
+        # Insert or update in database
+        docker exec docker-postgres-1 psql -U postgres -d fabricdb -c \
+            "INSERT INTO users (id, name, role, status, updated, updated_by, last_updated)
+             VALUES ('$ID', '$NAME', '$ROLE', '$STATUS', '$UPDATED', '$UPDATED_BY', NOW())
+             ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                role = EXCLUDED.role,
+                status = EXCLUDED.status,
+                updated = EXCLUDED.updated,
+                updated_by = EXCLUDED.updated_by,
+                last_updated = NOW();" > /dev/null 2>&1
+        
+        if [ $? -eq 0 ]; then
+            echo -e "  ${GREEN}✓${NC} Synced User: $ID"
+        else
+            echo -e "  ${RED}✗${NC} Failed User: $ID"
+        fi
+    done
+else
+    echo -e "${YELLOW}No users found on blockchain${NC}"
+fi
 
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"

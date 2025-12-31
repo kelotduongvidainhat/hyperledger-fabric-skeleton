@@ -73,6 +73,8 @@ func main() {
 	r.GET("/assets", getAllAssets)
 	r.GET("/assets/:id", getAsset)
 	r.POST("/assets", createAsset)
+	r.PUT("/assets/:id/lock", lockAsset)
+	r.PUT("/assets/:id/unlock", unlockAsset)
 	r.PUT("/assets/:id/transfer", transferAsset)
 	r.GET("/assets/:id/history", getAssetHistory)
 
@@ -88,7 +90,7 @@ func main() {
 }
 
 func queryAssetsFromDB(c *gin.Context) {
-	rows, err := db.Query("SELECT id, color, size, owner, appraised_value FROM assets")
+	rows, err := db.Query("SELECT id, name, category, status, updated, updated_by, owner FROM assets")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -97,17 +99,18 @@ func queryAssetsFromDB(c *gin.Context) {
 
 	var assets []gin.H
 	for rows.Next() {
-		var id, color, owner string
-		var size, value int
-		if err := rows.Scan(&id, &color, &size, &owner, &value); err != nil {
+		var id, name, category, status, updated, updatedBy, owner string
+		if err := rows.Scan(&id, &name, &category, &status, &updated, &updatedBy, &owner); err != nil {
 			continue
 		}
 		assets = append(assets, gin.H{
 			"ID":             id,
-			"Color":          color,
-			"Size":           size,
+			"Name":           name,
+			"Category":       category,
+			"Status":         status,
+			"Updated":        updated,
+			"UpdatedBy":      updatedBy,
 			"Owner":          owner,
-			"AppraisedValue": value,
 		})
 	}
 	c.JSON(http.StatusOK, assets)
@@ -137,11 +140,10 @@ func getAsset(c *gin.Context) {
 func createAsset(c *gin.Context) {
 	userID := c.GetHeader("X-User-ID")
 	var req struct {
-		ID             string `json:"id" binding:"required"`
-		Color          string `json:"color" binding:"required"`
-		Size           int    `json:"size" binding:"required"`
-		Owner          string `json:"owner" binding:"required"`
-		AppraisedValue int    `json:"appraisedValue" binding:"required"`
+		ID       string `json:"id" binding:"required"`
+		Name     string `json:"name" binding:"required"`
+		Category string `json:"category" binding:"required"`
+		Owner    string `json:"owner" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -149,7 +151,7 @@ func createAsset(c *gin.Context) {
 		return
 	}
 
-	err := fabricClient.CreateAsset(userID, req.ID, req.Color, req.Size, req.Owner, req.AppraisedValue)
+	err := fabricClient.CreateAsset(userID, req.ID, req.Name, req.Category, req.Owner)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -221,4 +223,29 @@ func listIdentities(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, identities)
+}
+func lockAsset(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	id := c.Param("id")
+
+	err := fabricClient.LockAsset(userID, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Asset locked successfully"})
+}
+
+func unlockAsset(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	id := c.Param("id")
+
+	err := fabricClient.UnlockAsset(userID, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Asset unlocked successfully"})
 }

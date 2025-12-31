@@ -81,9 +81,9 @@ tar cfz ${CHAINCODE_NAME}.tar.gz -C caas-pkg metadata.json code.tar.gz
 echo -e "${GREEN}✓ Chaincode packaged${NC}"
 echo ""
 
-# Step 5: Install on Org1
-echo -e "${YELLOW}Step 5: Installing chaincode on Org1 peer...${NC}"
-INSTALL_OUTPUT_ORG1=$(docker exec cli bash -c "
+# Step 5: Install on Org1 Peer0
+echo -e "${YELLOW}Step 5: Installing chaincode on Org1 Peer0...${NC}"
+INSTALL_OUTPUT_ORG1_PEER0=$(docker exec cli bash -c "
 export CORE_PEER_LOCALMSPID=Org1MSP
 export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
 export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
@@ -92,10 +92,8 @@ export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
 peer lifecycle chaincode install /opt/gopath/src/github.com/chaincode/asset-transfer/${CHAINCODE_NAME}.tar.gz 2>&1
 ")
 
-PACKAGE_ID=$(echo "$INSTALL_OUTPUT_ORG1" | grep "Chaincode code package identifier:" | sed 's/.*identifier: //')
+PACKAGE_ID=$(echo "$INSTALL_OUTPUT_ORG1_PEER0" | grep "Chaincode code package identifier:" | sed 's/.*identifier: //')
 if [ -z "$PACKAGE_ID" ]; then
-# Fallback: find the package ID with the latest hash (since they are alphabetical, this might not be perfect, but better than tail -n 1 which is non-deterministic)
-    # Actually, let's just use queryinstalled and find the one that matches our label
     PACKAGE_ID=$(docker exec cli bash -c "
     export CORE_PEER_LOCALMSPID=Org1MSP
     export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
@@ -103,27 +101,24 @@ if [ -z "$PACKAGE_ID" ]; then
 fi
 
 echo "Package ID: $PACKAGE_ID"
-echo -e "${GREEN}✓ Installed and captured ID${NC}"
+echo -e "${GREEN}✓ Installed on Peer0 and captured ID${NC}"
 echo ""
 
-# Step 6: Install on Org2
-echo -e "${YELLOW}Step 6: Installing chaincode on Org2 peer...${NC}"
+# Step 6: Install on Org1 Peer1
+echo -e "${YELLOW}Step 6: Installing chaincode on Org1 Peer1...${NC}"
 docker exec cli bash -c "
-export CORE_PEER_LOCALMSPID=Org2MSP
-export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
-export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
-export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
+export CORE_PEER_LOCALMSPID=Org1MSP
+export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer1.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=peer1.org1.example.com:8051
 
 peer lifecycle chaincode install /opt/gopath/src/github.com/chaincode/asset-transfer/${CHAINCODE_NAME}.tar.gz 2>&1 || true
 "
-
-echo -e "${GREEN}✓ Installed on Org2${NC}"
+echo -e "${GREEN}✓ Installed on Peer1${NC}"
 echo ""
 
-# Use the same package ID for both since we used the same package file
+# Use the same package ID
 PACKAGE_ID_ORG1=$PACKAGE_ID
-PACKAGE_ID_ORG2=$PACKAGE_ID
-echo ""
 
 # Step 8: Start chaincode containers
 echo -e "${YELLOW}Step 8: Starting chaincode containers...${NC}"
@@ -131,7 +126,6 @@ echo -e "${YELLOW}Step 8: Starting chaincode containers...${NC}"
 # Start chaincode containers
 # Force recreate containers to ensure env update
 export CHAINCODE_ID_ORG1=$PACKAGE_ID_ORG1
-export CHAINCODE_ID_ORG2=$PACKAGE_ID_ORG2
 docker-compose down
 docker-compose up -d
 
@@ -166,29 +160,6 @@ peer lifecycle chaincode approveformyorg \
 echo -e "${GREEN}✓ Approved for Org1${NC}"
 echo ""
 
-# Step 10: Approve for Org2
-echo -e "${YELLOW}Step 10: Approving chaincode for Org2...${NC}"
-docker exec cli bash -c "
-export CORE_PEER_LOCALMSPID=Org2MSP
-export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
-export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
-export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
-export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
-
-peer lifecycle chaincode approveformyorg \
-  -o orderer.example.com:7050 \
-  --channelID ${CHANNEL_NAME} \
-  --name ${CHAINCODE_NAME} \
-  --version ${CHAINCODE_VERSION} \
-  --package-id ${PACKAGE_ID_ORG2} \
-  --sequence ${SEQUENCE} \
-  --tls \
-  --cafile \$ORDERER_CA
-"
-
-echo -e "${GREEN}✓ Approved for Org2${NC}"
-echo ""
-
 # Step 11: Commit chaincode
 echo -e "${YELLOW}Step 11: Committing chaincode definition...${NC}"
 docker exec cli bash -c "
@@ -207,9 +178,7 @@ peer lifecycle chaincode commit \
   --tls \
   --cafile \$ORDERER_CA \
   --peerAddresses peer0.org1.example.com:7051 \
-  --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
-  --peerAddresses peer0.org2.example.com:9051 \
-  --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+  --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
 "
 
 echo -e "${GREEN}✓ Chaincode committed${NC}"
@@ -230,8 +199,6 @@ peer chaincode invoke \
   -n ${CHAINCODE_NAME} \
   --peerAddresses peer0.org1.example.com:7051 \
   --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
-  --peerAddresses peer0.org2.example.com:9051 \
-  --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt \
   -c '{\"function\":\"InitLedger\",\"Args\":[]}'
 "
 

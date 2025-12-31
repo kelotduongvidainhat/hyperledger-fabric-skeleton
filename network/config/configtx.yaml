@@ -15,6 +15,8 @@ Organizations:
         Rule: "OR('OrdererMSP.admin')"
     OrdererEndpoints:
       - orderer.example.com:7050
+      - orderer2.example.com:7050
+      - orderer3.example.com:7050
 
   - &Org1
     Name: Org1MSP
@@ -36,27 +38,6 @@ Organizations:
     AnchorPeers:
       - Host: peer0.org1.example.com
         Port: 7051
-
-  - &Org2
-    Name: Org2MSP
-    ID: Org2MSP
-    MSPDir: ../crypto-config/peerOrganizations/org2.example.com/msp
-    Policies:
-      Readers:
-        Type: Signature
-        Rule: "OR('Org2MSP.admin', 'Org2MSP.peer', 'Org2MSP.client')"
-      Writers:
-        Type: Signature
-        Rule: "OR('Org2MSP.admin', 'Org2MSP.client')"
-      Admins:
-        Type: Signature
-        Rule: "OR('Org2MSP.admin')"
-      Endorsement:
-        Type: Signature
-        Rule: "OR('Org2MSP.peer')"
-    AnchorPeers:
-      - Host: peer0.org2.example.com
-        Port: 9051
 
 Capabilities:
   Channel: &ChannelCapabilities
@@ -91,12 +72,22 @@ Orderer: &OrdererDefaults
   OrdererType: etcdraft
   Addresses:
     - orderer.example.com:7050
+    - orderer2.example.com:7050
+    - orderer3.example.com:7050
   EtcdRaft:
     Consenters:
       - Host: orderer.example.com
         Port: 7050
         ClientTLSCert: ../crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/server.crt
         ServerTLSCert: ../crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/server.crt
+      - Host: orderer2.example.com
+        Port: 7050
+        ClientTLSCert: ../crypto-config/ordererOrganizations/example.com/orderers/orderer2.example.com/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/example.com/orderers/orderer2.example.com/tls/server.crt
+      - Host: orderer3.example.com
+        Port: 7050
+        ClientTLSCert: ../crypto-config/ordererOrganizations/example.com/orderers/orderer3.example.com/tls/server.crt
+        ServerTLSCert: ../crypto-config/ordererOrganizations/example.com/orderers/orderer3.example.com/tls/server.crt
   BatchTimeout: 2s
   BatchSize:
     MaxMessageCount: 10
@@ -132,7 +123,7 @@ Channel: &ChannelDefaults
     <<: *ChannelCapabilities
 
 Profiles:
-  TwoOrgsOrdererGenesis:
+  OneOrgOrdererGenesis:
     <<: *ChannelDefaults
     Orderer:
       <<: *OrdererDefaults
@@ -144,15 +135,13 @@ Profiles:
       SampleConsortium:
         Organizations:
           - *Org1
-          - *Org2
 
-  TwoOrgsChannel:
+  OneOrgChannel:
     Consortium: SampleConsortium
     <<: *ChannelDefaults
     Application:
       <<: *ApplicationDefaults
       Organizations:
         - *Org1
-        - *Org2
       Capabilities:
         <<: *ApplicationCapabilities

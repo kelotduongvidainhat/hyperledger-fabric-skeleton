@@ -34,6 +34,16 @@ export const transferAsset = async (id, newOwner) => {
     return response.data;
 };
 
+export const lockAsset = async (id) => {
+    const response = await api.put(`/assets/${id}/lock`);
+    return response.data;
+};
+
+export const unlockAsset = async (id) => {
+    const response = await api.put(`/assets/${id}/unlock`);
+    return response.data;
+};
+
 export const fetchIdentities = async () => {
     const response = await api.get('/admin/identities');
     return response.data;

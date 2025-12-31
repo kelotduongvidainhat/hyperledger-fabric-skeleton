@@ -9,11 +9,13 @@ import (
 
 // Asset describes basic details of an asset
 type Asset struct {
-	ID             string `json:"ID"`
-	Color          string `json:"Color"`
-	Size           int    `json:"Size"`
-	Owner          string `json:"Owner"`
-	AppraisedValue int    `json:"AppraisedValue"`
+	ID        string `json:"ID"`
+	Name      string `json:"Name"`
+	Category  string `json:"Category"`
+	Owner     string `json:"Owner"`
+	Status    string `json:"Status"`
+	Updated   string `json:"Updated"`
+	UpdatedBy string `json:"UpdatedBy"`
 }
 
 // GetAllAssets returns all assets from the ledger
@@ -36,15 +38,39 @@ func (f *FabricClient) GetAllAssets(userID string) ([]Asset, error) {
 }
 
 // CreateAsset creates a new asset on the ledger
-func (f *FabricClient) CreateAsset(userID, id, color string, size int, owner string, value int) error {
+func (f *FabricClient) CreateAsset(userID, id, name, category, owner string) error {
 	fmt.Printf("Submitting CreateAsset: %s as %s...\n", id, userID)
 	_, err := f.executeAction(userID, func(c *client.Contract) (interface{}, error) {
-		return c.SubmitTransaction("CreateAsset", id, color, fmt.Sprint(size), owner, fmt.Sprint(value))
+		return c.SubmitTransaction("CreateAsset", id, name, category, owner)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to submit transaction: %w", err)
 	}
 
+	return nil
+}
+
+// LockAsset locks an asset
+func (f *FabricClient) LockAsset(userID, id string) error {
+	fmt.Printf("Submitting LockAsset: %s as %s...\n", id, userID)
+	_, err := f.executeAction(userID, func(c *client.Contract) (interface{}, error) {
+		return c.SubmitTransaction("LockAsset", id)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to submit transaction: %w", err)
+	}
+	return nil
+}
+
+// UnlockAsset unlocks an asset
+func (f *FabricClient) UnlockAsset(userID, id string) error {
+	fmt.Printf("Submitting UnlockAsset: %s as %s...\n", id, userID)
+	_, err := f.executeAction(userID, func(c *client.Contract) (interface{}, error) {
+		return c.SubmitTransaction("UnlockAsset", id)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to submit transaction: %w", err)
+	}
 	return nil
 }
 

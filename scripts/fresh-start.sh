@@ -143,11 +143,11 @@ echo ""
 
 echo -e "${YELLOW}→ Checking Docker Images...${NC}"
 REQUIRED_IMAGES=(
-    "hyperledger/fabric-peer:2.5"
-    "hyperledger/fabric-orderer:2.5"
-    "hyperledger/fabric-ccenv:2.5"
-    "hyperledger/fabric-tools:2.5"
-    "hyperledger/fabric-ca:1.5"
+    "hyperledger/fabric-peer:2.5.14"
+    "hyperledger/fabric-orderer:2.5.14"
+    "hyperledger/fabric-ccenv:2.5.14"
+    "hyperledger/fabric-tools:2.5.14"
+    "hyperledger/fabric-ca:1.5.15"
     "couchdb:3.3"
     "postgres:15"
 )
@@ -223,22 +223,35 @@ echo -e "${BLUE}║ PHASE 2: CLEANING UP RESOURCES                            �
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Remove all Docker containers
-echo -e "${YELLOW}→ Removing Docker Containers...${NC}"
+# Remove all Docker containers and volumes
+echo -e "${YELLOW}→ Stopping and removing all containers and volumes...${NC}"
+
+# CRITICAL: Stop CA containers FIRST so their anonymous volumes can be removed
+echo "  • Stopping CA containers..."
+docker stop ca_org1 ca_orderer 2>/dev/null || true
+docker rm -f ca_org1 ca_orderer 2>/dev/null || true
+
+# Now docker-compose down can properly remove all volumes including CA anonymous volumes
+echo "  • Running docker-compose down..."
+cd "${PROJECT_ROOT}/network/docker"
+docker-compose down -v --remove-orphans 2>/dev/null || true
+
+# Remove any remaining containers
 CONTAINERS=$(docker ps -aq --filter "name=peer0.org1" --filter "name=peer0.org2" --filter "name=orderer" --filter "name=ca_" --filter "name=couchdb" --filter "name=postgres" --filter "name=asset-transfer" --filter "name=cli")
 if [ -n "$CONTAINERS" ]; then
     docker rm -f $CONTAINERS 2>/dev/null || true
 fi
-echo "  ✓ Containers removed"
 
-# Remove Docker volumes
-echo -e "${YELLOW}→ Removing Docker Volumes...${NC}"
-VOLUMES=$(docker volume ls -q --filter "name=docker_peer0.org1" --filter "name=docker_peer0.org2" --filter "name=docker_orderer" --filter "name=docker_couchdb" --filter "name=docker_postgres")
+# Remove ALL dangling volumes (including any missed anonymous CA volumes)
+echo "  • Pruning dangling volumes..."
+docker volume prune -af 2>/dev/null || true
+
+# Clean named volumes if any remain
+VOLUMES=$(docker volume ls -q | grep -E "docker_|couchdb|orderer|peer|postgres" || true)
 if [ -n "$VOLUMES" ]; then
-    docker volume rm $VOLUMES 2>/dev/null || true
+    echo "$VOLUMES" | xargs docker volume rm 2>/dev/null || true
 fi
-echo "  ✓ Volumes removed"
-
+echo "  ✓ All containers and volumes removed"
 # Remove Docker networks
 echo -e "${YELLOW}→ Removing Docker Networks...${NC}"
 NETWORKS=$(docker network ls -q --filter "name=docker_fabric")
@@ -250,14 +263,14 @@ echo "  ✓ Networks removed"
 # Clean up crypto material
 echo -e "${YELLOW}→ Cleaning Crypto Material...${NC}"
 if [ -d "${PROJECT_ROOT}/network/crypto-config" ]; then
-    sudo rm -rf "${PROJECT_ROOT}/network/crypto-config/"* 2>/dev/null || true
+    rm -rf "${PROJECT_ROOT}/network/crypto-config/"* 2>/dev/null || true
     echo "  ✓ Crypto material cleaned"
 fi
 
 # Clean up channel artifacts
 echo -e "${YELLOW}→ Cleaning Channel Artifacts...${NC}"
 if [ -d "${PROJECT_ROOT}/network/channel-artifacts" ]; then
-    sudo rm -rf "${PROJECT_ROOT}/network/channel-artifacts/"* 2>/dev/null || true
+    rm -rf "${PROJECT_ROOT}/network/channel-artifacts/"* 2>/dev/null || true
     echo "  ✓ Channel artifacts cleaned"
 fi
 
@@ -297,7 +310,9 @@ echo ""
 # Step 1: Setup network
 echo -e "${YELLOW}→ Step 1: Setting up Fabric Network...${NC}"
 cd "${PROJECT_ROOT}/scripts"
-bash network-setup.sh
+sudo bash network-setup.sh
+# Fix permissions immediately while sudo session is still active
+sudo chown -R ${USER}:${USER} "${PROJECT_ROOT}/network/crypto-config" 2>/dev/null || true
 echo -e "${GREEN}  ✓ Network setup complete${NC}"
 echo ""
 
@@ -321,7 +336,9 @@ echo ""
 # Step 4: Enroll identities
 echo -e "${YELLOW}→ Step 4: Enrolling Identities...${NC}"
 cd "${PROJECT_ROOT}/scripts"
-bash enroll-identities.sh
+sudo bash enroll-identities.sh
+# Fix permissions again after enrollment
+sudo chown -R ${USER}:${USER} "${PROJECT_ROOT}/network/crypto-config" 2>/dev/null || true
 echo -e "${GREEN}  ✓ Identities enrolled${NC}"
 echo ""
 
@@ -367,8 +384,6 @@ docker exec cli peer chaincode invoke \
     -C mychannel -n asset-transfer \
     --peerAddresses peer0.org1.example.com:7051 \
     --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
-    --peerAddresses peer0.org2.example.com:9051 \
-    --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt \
     -c '{"function":"InitLedger","Args":[]}' \
     --waitForEvent 2>/dev/null || true
 

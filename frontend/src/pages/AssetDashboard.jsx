@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { fetchAssets, fetchAssetsFromDB, createAsset, transferAsset, setAuthToken, fetchIdentities, fetchAssetHistory } from '../services/api';
+import { fetchAssets, fetchAssetsFromDB, createAsset, transferAsset, lockAsset, unlockAsset, setAuthToken, fetchIdentities, fetchAssetHistory } from '../services/api';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/card';
-import { RefreshCw, Send, Plus, History, X } from 'lucide-react';
+import { RefreshCw, Send, Plus, History, X, Lock, Unlock } from 'lucide-react';
 
 export default function AssetDashboard() {
     const [currentUser, setCurrentUser] = useState('admin');
@@ -12,7 +12,7 @@ export default function AssetDashboard() {
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
-        id: '', color: '', size: '', owner: '', appraisedValue: ''
+        id: '', name: '', category: '', owner: ''
     });
     const [transferData, setTransferData] = useState({ id: '', newOwner: '' });
 
@@ -61,15 +61,29 @@ export default function AssetDashboard() {
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
-            await createAsset({
-                ...formData,
-                size: parseInt(formData.size),
-                appraisedValue: parseInt(formData.appraisedValue)
-            });
-            setFormData({ id: '', color: '', size: '', owner: '', appraisedValue: '' });
+            await createAsset(formData);
+            setFormData({ id: '', name: '', category: '', owner: '' });
             loadAssets();
         } catch (error) {
             alert('Failed to create asset: ' + error.response?.data?.error || error.message);
+        }
+    };
+
+    const handleLock = async (id) => {
+        try {
+            await lockAsset(id);
+            loadAssets();
+        } catch (error) {
+            alert('Failed to lock asset: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    const handleUnlock = async (id) => {
+        try {
+            await unlockAsset(id);
+            loadAssets();
+        } catch (error) {
+            alert('Failed to unlock asset: ' + (error.response?.data?.error || error.message));
         }
     };
 
@@ -161,11 +175,10 @@ export default function AssetDashboard() {
                         <form onSubmit={handleCreate} className="space-y-4">
                             <Input placeholder="Asset ID" value={formData.id} onChange={e => setFormData({ ...formData, id: e.target.value })} required />
                             <div className="grid grid-cols-2 gap-4">
-                                <Input placeholder="Color" value={formData.color} onChange={e => setFormData({ ...formData, color: e.target.value })} required />
-                                <Input type="number" placeholder="Size" value={formData.size} onChange={e => setFormData({ ...formData, size: e.target.value })} required />
+                                <Input placeholder="Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+                                <Input placeholder="Category" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} required />
                             </div>
                             <Input placeholder="Owner" value={formData.owner} onChange={e => setFormData({ ...formData, owner: e.target.value })} required />
-                            <Input type="number" placeholder="Value" value={formData.appraisedValue} onChange={e => setFormData({ ...formData, appraisedValue: e.target.value })} required />
                             <Button type="submit" className="w-full">Create Asset</Button>
                         </form>
                     </CardContent>
@@ -198,10 +211,10 @@ export default function AssetDashboard() {
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                                 <tr>
                                     <th scope="col" className="px-6 py-3">ID</th>
-                                    <th scope="col" className="px-6 py-3">Color</th>
-                                    <th scope="col" className="px-6 py-3">Size</th>
+                                    <th scope="col" className="px-6 py-3">Name</th>
+                                    <th scope="col" className="px-6 py-3">Category</th>
                                     <th scope="col" className="px-6 py-3">Owner</th>
-                                    <th scope="col" className="px-6 py-3">Value</th>
+                                    <th scope="col" className="px-6 py-3">Status</th>
                                     <th scope="col" className="px-6 py-3">Actions</th>
                                 </tr>
                             </thead>
@@ -209,14 +222,27 @@ export default function AssetDashboard() {
                                 {assets.map((asset) => (
                                     <tr key={asset.ID} className="bg-white border-b">
                                         <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">{asset.ID}</td>
-                                        <td className="px-6 py-4">{asset.Color}</td>
-                                        <td className="px-6 py-4">{asset.Size}</td>
+                                        <td className="px-6 py-4">{asset.Name}</td>
+                                        <td className="px-6 py-4">{asset.Category}</td>
                                         <td className="px-6 py-4">{asset.Owner}</td>
-                                        <td className="px-6 py-4">${asset.AppraisedValue}</td>
                                         <td className="px-6 py-4">
-                                            <Button variant="ghost" size="sm" onClick={() => handleShowHistory(asset.ID)}>
-                                                <History className="w-4 h-4 mr-1" /> History
+                                            <span className={`px-2 py-1 rounded text-xs font-bold ${asset.Status === 'AVAILABLE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                {asset.Status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 flex items-center gap-2">
+                                            <Button variant="ghost" size="sm" onClick={() => handleShowHistory(asset.ID)} title="History">
+                                                <History className="w-4 h-4" />
                                             </Button>
+                                            {asset.Status === 'AVAILABLE' ? (
+                                                <Button variant="ghost" size="sm" onClick={() => handleLock(asset.ID)} title="Lock" className="text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50">
+                                                    <Lock className="w-4 h-4" />
+                                                </Button>
+                                            ) : (
+                                                <Button variant="ghost" size="sm" onClick={() => handleUnlock(asset.ID)} title="Unlock" className="text-green-600 hover:text-green-800 hover:bg-green-50">
+                                                    <Unlock className="w-4 h-4" />
+                                                </Button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -261,7 +287,7 @@ export default function AssetDashboard() {
                                                 {record.record ? (
                                                     <div className="grid grid-cols-2 gap-2 text-sm">
                                                         <div><span className="font-semibold">Owner:</span> {record.record.Owner}</div>
-                                                        <div><span className="font-semibold">Value:</span> ${record.record.AppraisedValue}</div>
+                                                        <div><span className="font-semibold">Status:</span> {record.record.Status}</div>
                                                     </div>
                                                 ) : (
                                                     <div className="text-sm text-gray-500 italic">No record data</div>

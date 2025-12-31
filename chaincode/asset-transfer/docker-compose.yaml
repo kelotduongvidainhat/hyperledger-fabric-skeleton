@@ -17,15 +17,3 @@ services:
       - "9991:9999"
     networks:
       - test
-
-  asset-transfer-org2:
-    container_name: asset-transfer-org2
-    image: asset-transfer:1.0
-    environment:
-      - CHAINCODE_SERVER_ADDRESS=0.0.0.0:9999
-      - CHAINCODE_ID=${CHAINCODE_ID_ORG2}
-      - CORE_CHAINCODE_ID_NAME=${CHAINCODE_ID_ORG2}
-    ports:
-      - "9992:9999"
-    networks:
-      - test

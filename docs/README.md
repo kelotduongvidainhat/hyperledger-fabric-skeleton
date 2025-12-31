@@ -153,7 +153,7 @@ Welcome to the Hyperledger Fabric project documentation. This folder contains al
 - **Fabric**: 2.5.14
 - **Fabric CA**: 1.5.15
 - **Go**: 1.25.2
-- **CouchDB**: 3.4.2
+- **CouchDB**: 3.3
 
 ### Network Status
 - **Channel**: mychannel ✅

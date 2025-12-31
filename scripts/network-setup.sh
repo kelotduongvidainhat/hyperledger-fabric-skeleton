@@ -17,8 +17,8 @@ PROJECT_ROOT="/home/qwe/hyperledger-fabric-skeleton"
 echo -e "${YELLOW}Step 0: Cleaning previous state...${NC}"
 cd "${PROJECT_ROOT}/network/docker"
 docker-compose down -v --remove-orphans || true
-sudo rm -rf "${PROJECT_ROOT}/network/crypto-config"
-sudo rm -rf "${PROJECT_ROOT}/network/channel-artifacts"
+rm -rf "${PROJECT_ROOT}/network/crypto-config"
+rm -rf "${PROJECT_ROOT}/network/channel-artifacts"
 mkdir -p "${PROJECT_ROOT}/network/crypto-config"
 mkdir -p "${PROJECT_ROOT}/network/channel-artifacts"
 echo -e "${GREEN}✓ Cleaned${NC}"
@@ -27,13 +27,13 @@ echo -e "${GREEN}✓ Cleaned${NC}"
 echo -e "${YELLOW}Step 1: Generating crypto material via Fabric CA...${NC}"
 
 # Create CA directories
+# Create CA directories
 mkdir -p "${PROJECT_ROOT}/network/crypto-config/peerOrganizations/org1.example.com/ca"
-mkdir -p "${PROJECT_ROOT}/network/crypto-config/peerOrganizations/org2.example.com/ca"
 mkdir -p "${PROJECT_ROOT}/network/crypto-config/ordererOrganizations/example.com/ca"
 
 # Start only the CA containers
 cd "${PROJECT_ROOT}/network/docker"
-docker-compose up -d ca_org1 ca_org2 ca_orderer
+docker-compose up -d ca_org1 ca_orderer
 
 echo "Waiting for CAs to start (5s)..."
 sleep 5
@@ -42,21 +42,20 @@ sleep 5
 cd "${PROJECT_ROOT}"
 ./scripts/enroll-identities.sh
 
-sudo chown -R $USER:$USER "${PROJECT_ROOT}/network/crypto-config"
+# sudo chown -R $USER:$USER "${PROJECT_ROOT}/network/crypto-config"
 
 # 2. Generate Channel Artifacts
 echo -e "${YELLOW}Step 2: Generating channel artifacts...${NC}"
 export FABRIC_CFG_PATH="${PROJECT_ROOT}/network/config"
 
 echo "Generating genesis block..."
-"${PROJECT_ROOT}/bin/configtxgen" -profile TwoOrgsOrdererGenesis -channelID system-channel -outputBlock "${PROJECT_ROOT}/network/channel-artifacts/genesis.block"
+"${PROJECT_ROOT}/bin/configtxgen" -profile OneOrgOrdererGenesis -channelID system-channel -outputBlock "${PROJECT_ROOT}/network/channel-artifacts/genesis.block"
 
 echo "Generating channel creation transaction..."
-"${PROJECT_ROOT}/bin/configtxgen" -profile TwoOrgsChannel -outputCreateChannelTx "${PROJECT_ROOT}/network/channel-artifacts/mychannel.tx" -channelID mychannel
+"${PROJECT_ROOT}/bin/configtxgen" -profile OneOrgChannel -outputCreateChannelTx "${PROJECT_ROOT}/network/channel-artifacts/mychannel.tx" -channelID mychannel
 
 echo "Generating anchor peer updates..."
-"${PROJECT_ROOT}/bin/configtxgen" -profile TwoOrgsChannel -outputAnchorPeersUpdate "${PROJECT_ROOT}/network/channel-artifacts/Org1MSPanchors.tx" -channelID mychannel -asOrg Org1MSP
-"${PROJECT_ROOT}/bin/configtxgen" -profile TwoOrgsChannel -outputAnchorPeersUpdate "${PROJECT_ROOT}/network/channel-artifacts/Org2MSPanchors.tx" -channelID mychannel -asOrg Org2MSP
+"${PROJECT_ROOT}/bin/configtxgen" -profile OneOrgChannel -outputAnchorPeersUpdate "${PROJECT_ROOT}/network/channel-artifacts/Org1MSPanchors.tx" -channelID mychannel -asOrg Org1MSP
 
 echo -e "${GREEN}✓ Artifacts generated${NC}"
 
@@ -77,7 +76,7 @@ export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/orde
 peer channel create -o orderer.example.com:7050 -c mychannel -f ./channel-artifacts/mychannel.tx --outputBlock ./channel-artifacts/mychannel.block --tls --cafile \$ORDERER_CA
 "
 
-# Join Org1
+# Join Org1 Peer0
 docker exec cli bash -c "
 export CORE_PEER_LOCALMSPID=Org1MSP
 export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
@@ -86,12 +85,12 @@ export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
 peer channel join -b ./channel-artifacts/mychannel.block
 "
 
-# Join Org2
+# Join Org1 Peer1
 docker exec cli bash -c "
-export CORE_PEER_LOCALMSPID=Org2MSP
-export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
-export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
-export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
+export CORE_PEER_LOCALMSPID=Org1MSP
+export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer1.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=peer1.org1.example.com:8051
 peer channel join -b ./channel-artifacts/mychannel.block
 "
 
@@ -104,15 +103,6 @@ export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric
 export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
 export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
 peer channel update -o orderer.example.com:7050 -c mychannel -f ./channel-artifacts/Org1MSPanchors.tx --tls --cafile \$ORDERER_CA
-"
-
-docker exec cli bash -c "
-export ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
-export CORE_PEER_LOCALMSPID=Org2MSP
-export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
-export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
-export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
-peer channel update -o orderer.example.com:7050 -c mychannel -f ./channel-artifacts/Org2MSPanchors.tx --tls --cafile \$ORDERER_CA
 "
 
 echo -e "${GREEN}============================================${NC}"
