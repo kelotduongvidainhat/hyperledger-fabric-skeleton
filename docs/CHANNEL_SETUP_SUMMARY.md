@@ -111,7 +111,7 @@ peer channel getinfo -c mychannel
 ### Version Information
 - **Fabric**: v2.5.14
 - **Fabric CA**: v1.5.15
-- **CouchDB**: 3.4.2
+- **CouchDB**: 3.3
 - **Go**: 1.25.2
 
 ---

@@ -37,10 +37,7 @@ function enrollOrg1() {
     OrganizationalUnitIdentifier: peer
   AdminOUIdentifier:
     Certificate: cacerts/${CA_CERT}
-    OrganizationalUnitIdentifier: admin
-  OrdererOUIdentifier:
-    Certificate: cacerts/${CA_CERT}
-    OrganizationalUnitIdentifier: orderer" > ${PWD}/network/crypto-config/peerOrganizations/org1.example.com/msp/config.yaml
+    OrganizationalUnitIdentifier: admin" > ${PWD}/network/crypto-config/peerOrganizations/org1.example.com/msp/config.yaml
 
   # Copy CA cert to tlscacerts for the organization msp
   mkdir -p ${PWD}/network/crypto-config/peerOrganizations/org1.example.com/msp/tlscacerts

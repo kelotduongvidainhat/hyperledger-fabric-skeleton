@@ -185,8 +185,9 @@ if [ -f "${PROJECT_ROOT}/backend.pid" ]; then
     fi
     rm -f "${PROJECT_ROOT}/backend.pid"
 else
-    # Try to find and kill any running backend process
-    pkill -f "backend/cmd/api" || true
+    # Try to find and kill any running backend process on port 8080
+    fuser -k 8080/tcp >/dev/null 2>&1 || true
+    pkill -f "go run main.go" || true
     echo "  ✓ Backend API processes terminated"
 fi
 

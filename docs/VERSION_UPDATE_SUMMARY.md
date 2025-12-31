@@ -65,7 +65,7 @@ go version
 
 | Image | Previous Version | Updated Version | Status |
 |-------|-----------------|-----------------|--------|
-| couchdb | 3.3.3 | **3.4.2** | ✅ Updated |
+| couchdb | 3.3.3 | **3.3** | ✅ Updated |
 
 **Cleanup**:
 - ✅ Removed old image tags (2.5, 1.5.12, 3.3.3)
@@ -84,7 +84,7 @@ go version
 | **Docker Images** | 2.5.14 | go1.25.2 | ✅ |
 | **System Go** | 1.25.2 | - | ✅ |
 | **Fabric CA** | 1.5.15 | go1.23.5 | ✅ |
-| **CouchDB** | 3.4.2 | - | ✅ |
+| **CouchDB** | 3.3 | - | ✅ |
 
 ---
 
@@ -130,7 +130,7 @@ go version
 - All Go module dependencies updated to latest compatible versions
 
 ### CouchDB
-- Updated from 3.3.3 to **3.4.2**
+- Updated from 3.3.3 to **3.3**
 - Includes performance improvements and bug fixes
 
 ### Docker Base Images
@@ -168,7 +168,7 @@ go version
 ### Verify Docker Images
 ```bash
 docker images | grep -E "hyperledger|couchdb"
-# Should show only 2.5.14, 1.5.15, and 3.4.2 versions
+# Should show only 2.5.14, 1.5.15, and 3.3 versions
 ```
 
 ### Verify Docker Compose Configuration
@@ -238,7 +238,7 @@ sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz
 - **Fabric 2.5.14 Release Notes**: https://github.com/hyperledger/fabric/releases/tag/v2.5.14
 - **Fabric CA 1.5.15 Release Notes**: https://github.com/hyperledger/fabric-ca/releases/tag/v1.5.15
 - **Go 1.25.2 Release Notes**: https://go.dev/doc/devel/release#go1.25.2
-- **CouchDB 3.4.2 Release Notes**: https://docs.couchdb.org/en/stable/whatsnew/3.4.html
+- **CouchDB 3.3 Release Notes**: https://docs.couchdb.org/en/stable/whatsnew/3.3.html
 
 ---
 
