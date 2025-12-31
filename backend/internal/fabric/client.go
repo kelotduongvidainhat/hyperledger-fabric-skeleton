@@ -28,6 +28,7 @@ type FabricClient struct {
 	Connection *grpc.ClientConn
 	Store      *EnrollmentStore
 	Network    *client.Network
+	CAClient   *CAClient
 }
 
 // NewFabricClient initializes the gRPC connection and enrollment store
@@ -62,10 +63,18 @@ func NewFabricClient() (*FabricClient, error) {
 
 	network := gw.GetNetwork(channelName)
 
+	// Initialize CA Client
+	caCertPath := cryptoPath + "/ca/ca.org1.example.com-cert.pem"
+	caClient, err := NewCAClient("https://localhost:7054", cryptoPath+"/users", caCertPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize CA client: %w", err)
+	}
+
 	return &FabricClient{
 		Connection: clientConnection,
 		Store:      store,
 		Network:    network,
+		CAClient:   caClient,
 	}, nil
 }
 

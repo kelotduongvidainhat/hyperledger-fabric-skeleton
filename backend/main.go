@@ -81,6 +81,10 @@ func main() {
 	// Admin Routes
 	r.GET("/admin/identities", listIdentities)
 
+	// Auth Routes
+	r.POST("/auth/register", registerUser)
+	r.POST("/auth/login", loginUser)
+
 	// DB Query Routes
 	r.GET("/api/query/assets", queryAssetsFromDB)
 
@@ -196,6 +200,9 @@ func getAssetHistory(c *gin.Context) {
 	// But let's rely on JSON raw message if we want, or just let client handle it string.
 	// Actually, client.go returns string. Let's send it as raw JSON.
 	
+	// log the history for debugging
+	log.Printf("Asset History for ID %s: %s", id, history)
+
 	c.Header("Content-Type", "application/json")
 	c.String(http.StatusOK, history)
 }
@@ -249,3 +256,63 @@ func unlockAsset(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Asset unlocked successfully"})
 }
+
+func registerUser(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Register the user using the CA Client
+	// We use the hardcoded admin credentials for the registrar for this demo
+	// In a real app, this might be a specific registrar identity
+	secret, err := fabricClient.CAClient.Register("admin", "adminpw", req.Username, req.Password, "client", "org1.department1")
+	if err != nil {
+		// If user already exists, we might want to handle gracefully, but error is fine for now
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to register user: %v", err)})
+		return
+	}
+
+	// Also create the user in the chaincode (optional, but good for keeping state)
+	// We use Admin to create the user record on-chain
+	err = fabricClient.CreateUser("admin", req.Username, req.Username, "USER")
+	if err != nil {
+		log.Printf("Warning: Failed to create user on chain: %v", err)
+		// Don't fail the request, as CA registration succeeded
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "User registered successfully", 
+		"secret": secret,
+	})
+}
+
+func loginUser(c *gin.Context) {
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Enroll the user (verify credentials and download certs to local wallet)
+	_, err := fabricClient.CAClient.Enroll(req.Username, req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed or user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Login successful",
+		"user": req.Username,
+	})
+}
+

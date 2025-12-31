@@ -30,7 +30,7 @@ failed to evaluate transaction: rpc error: code = FailedPrecondition desc = eval
 **Cause:**
 The identity attempting the transaction does not have the required permissions (Role/OU) in the channel policy. This can be caused by one of the following 5 issues:
 
-1.  **NodeOU Configuration Mismatch (Missing `OrdererOUIdentifier`)**: The channel requires specific OUs for validation. If `config.yaml` enables NodeOUs but the **Orderer MSP** is missing the `OrdererOUIdentifier` block, the Orderer nodes cannot validate their role, causing `permission denied` during System Channel writes (e.g., creating a channel). **Note:** The **Org MSP** should *not* have `OrdererOUIdentifier`. 
+1.  **NodeOU Configuration Mismatch (Missing `OrdererOUIdentifier`)**: The channel requires specific OUs for validation. If `config.yaml` enables NodeOUs but the **Orderer MSP** is missing the `OrdererOUIdentifier` block, the Orderer nodes cannot validate their role, causing `permission denied` `access denied: channel [mychannel] creator org [Org1MSP]` during System Channel writes (e.g., creating a channel). **Note:** The **Org MSP** should *not* have `OrdererOUIdentifier`. 
 2.  **Identity Type Mismatch**: The backend is using an identity registered as `admin` but the policy strictly requires `client` (or vice versa).
 3.  **Channel Policy Definition Config**: The `configtx.yaml` might incorrectly restrict Writers to only one role type that doesn't match your identity.
 4.  **Signature/SDK Issue**: The Fabric SDK might be calculating the proposal signature differently than the Peer expects (version mismatch).

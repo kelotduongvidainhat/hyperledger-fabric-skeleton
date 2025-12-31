@@ -3,11 +3,11 @@ import { fetchAssets, fetchAssetsFromDB, createAsset, transferAsset, lockAsset, 
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/card';
-import { RefreshCw, Send, Plus, History, X, Lock, Unlock } from 'lucide-react';
+import { RefreshCw, Send, Plus, History, X, Lock, Unlock, LogOut } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function AssetDashboard() {
-    const [currentUser, setCurrentUser] = useState('admin');
-    const [identities, setIdentities] = useState([]);
+    const { user, logout } = useAuth();
     const [dataSource, setDataSource] = useState('blockchain'); // 'blockchain' | 'database'
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -23,23 +23,9 @@ export default function AssetDashboard() {
     const [loadingHistory, setLoadingHistory] = useState(false);
 
     useEffect(() => {
-        loadIdentities();
-    }, []);
-
-    useEffect(() => {
-        setAuthToken(currentUser);
+        // Initial load
         loadAssets();
-    }, [currentUser, dataSource]);
-
-    const loadIdentities = async () => {
-        try {
-            const data = await fetchIdentities();
-            setIdentities(data);
-        } catch (error) {
-            console.error("Failed to fetch identities", error);
-            setIdentities(['admin', 'user1']);
-        }
-    };
+    }, [dataSource]); // Removed currentUser dependency
 
     const loadAssets = async () => {
         setLoading(true);
@@ -149,18 +135,14 @@ export default function AssetDashboard() {
                             </button>
                         </div>
                     </div>
-                    <span className="text-sm text-gray-500">Acting as:</span>
-                    <select
-                        className="border rounded p-2"
-                        value={currentUser}
-                        onChange={(e) => setCurrentUser(e.target.value)}
-                    >
-                        {identities.map(user => (
-                            <option key={user} value={user}>
-                                {user.charAt(0).toUpperCase() + user.slice(1)} (Org1)
-                            </option>
-                        ))}
-                    </select>
+                    <div className="flex items-center gap-4 text-sm">
+                        <span className="text-gray-600">
+                            User: <span className="font-bold text-gray-900">{user?.username || 'Unknown'}</span>
+                        </span>
+                        <Button variant="outline" size="sm" onClick={logout} className="flex items-center gap-1">
+                            <LogOut className="w-4 h-4" /> Logout
+                        </Button>
+                    </div>
                 </div>
             </header>
 

@@ -105,3 +105,16 @@ func (f *FabricClient) TransferAsset(userID, id string, newOwner string) error {
 
 	return nil
 }
+
+// CreateUser creates a new user on the ledger
+func (f *FabricClient) CreateUser(userID, id, name, role string) error {
+	fmt.Printf("Submitting CreateUser: %s as %s...\n", id, userID)
+	_, err := f.executeAction(userID, func(c *client.Contract) (interface{}, error) {
+		return c.SubmitTransaction("CreateUser", id, name, role)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to submit transaction: %w", err)
+	}
+
+	return nil
+}

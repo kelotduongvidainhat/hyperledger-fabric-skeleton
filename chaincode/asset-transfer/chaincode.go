@@ -480,7 +480,7 @@ type HistoryRecord struct {
 func (s *SmartContract) GetAssetHistory(ctx contractapi.TransactionContextInterface, assetID string) ([]HistoryRecord, error) {
 	log.Printf("GetAssetHistory: ID %v", assetID)
 
-	resultsIterator, err := ctx.GetStub().GetHistoryForKey(assetID)
+	resultsIterator, err := ctx.GetStub().GetHistoryForKey(AssetPrefix + assetID)
 	if err != nil {
 		return nil, err
 	}
