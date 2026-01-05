@@ -4,7 +4,7 @@ import (
 	"backend/internal/auth"
 	"backend/internal/fabric"
 	"log"
-
+	"fmt"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -46,8 +46,27 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	})
 }
 
-// Register (Stub)
+// Register handles new user registration
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
-	// For MVP, return error or mock
-	return c.Status(501).JSON(fiber.Map{"error": "Automatic registration disabled. Use CLI."})
+	type RegisterReq struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	var req RegisterReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	// Call Fabric CA Registration
+	resp, err := fabric.RegisterUser(h.CAConfig, req.Username, req.Password)
+	if err != nil {
+		log.Printf("Register failed for %s: %v", req.Username, err)
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Registration failed: %v", err)})
+	}
+
+	return c.Status(201).JSON(fiber.Map{
+		"message": "User registered successfully",
+		"details": resp,
+	})
 }

@@ -28,27 +28,25 @@ setOrg2() {
     export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
 }
 
-# 1. Package Chaincode (CaaS Style)
-echo "📦 Packaging chaincode (CaaS)..."
-# Create tarball of connection.json and metadata.json
-cd /opt/gopath/src/github.com/chaincode/packaging
-tar cfz code.tar.gz connection.json
-tar cfz ${CC_NAME}.tar.gz code.tar.gz metadata.json
-mv ${CC_NAME}.tar.gz /opt/gopath/src/github.com/hyperledger/fabric/peer/
+# 1. Check for Package
+if [ ! -f "basic.tar.gz" ]; then
+    echo "❌ basic.tar.gz not found! Please package chaincode on host and copy to CLI container."
+    exit 1
+fi
 
 cd /opt/gopath/src/github.com/hyperledger/fabric/peer
 
 # 2. Install Chaincode (Org1)
 echo "💿 Installing chaincode on Org1..."
 setOrg1
-peer lifecycle chaincode install ${CC_NAME}.tar.gz
+peer lifecycle chaincode install basic.tar.gz
 PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep ${CC_NAME}_${CC_VERSION} | awk -F "[, ]" '{print $3}')
 echo "   Package ID: $PACKAGE_ID"
 
 # 3. Install Chaincode (Org2)
 echo "💿 Installing chaincode on Org2..."
 setOrg2
-peer lifecycle chaincode install ${CC_NAME}.tar.gz
+peer lifecycle chaincode install basic.tar.gz
 
 # 4. Start Chaincode Container (Manual Step emulation)
 # In CaaS, the chaincode ID must match the Package ID.

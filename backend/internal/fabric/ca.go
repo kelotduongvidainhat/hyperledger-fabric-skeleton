@@ -11,9 +11,10 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"net/http"
-	"crypto/tls"
+	"os/exec"
 )
 
 // CAConfig holds CA connection details
@@ -60,10 +61,7 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 	req.SetBasicAuth(username, secret)
 	req.Header.Set("Content-Type", "application/json")
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // Dev mode for CA
-	}
-	client := &http.Client{Transport: tr}
+	client := &http.Client{}
 	
 	resp, err := client.Do(req)
 	if err != nil {
@@ -72,21 +70,24 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("enrollment failed (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// 5. Parse Response
-	// Response structure: { "result": { "Base64": "..." }, "success": true }
+	body, _ := io.ReadAll(resp.Body)
+	log.Printf("CA Response: %s", string(body))
+	
 	var caResp struct {
 		Success bool `json:"success"`
 		Result  struct {
-			Base64 string `json:"Base64"` // The cert is inside this field
+			Cert string `json:"Cert"` // Some versions use Cert
+			Base64 string `json:"Base64"`
 		} `json:"result"`
 		Errors []interface{} `json:"errors"`
 	}
 	
-	if err := json.NewDecoder(resp.Body).Decode(&caResp); err != nil {
+	if err := json.Unmarshal(body, &caResp); err != nil {
 		return fmt.Errorf("failed to decode CA response: %v", err)
 	}
 
@@ -94,10 +95,21 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 		return fmt.Errorf("CA returned error: %v", caResp.Errors)
 	}
 
+	// Try Cert field first, then Base64
+	certPEMStr := caResp.Result.Cert
+	if certPEMStr == "" {
+		certPEMStr = caResp.Result.Base64
+	}
+
 	// Base64 decode the cert
-	certPEM, err := base64.StdEncoding.DecodeString(caResp.Result.Base64)
-	if err != nil {
-		return fmt.Errorf("failed to decode cert base64: %v", err)
+	certPEM, err := base64.StdEncoding.DecodeString(certPEMStr)
+	if err != nil || len(certPEM) == 0 {
+		// If not base64, maybe it's raw PEM?
+		certPEM = []byte(certPEMStr)
+	}
+	
+	if len(certPEM) == 0 {
+		return fmt.Errorf("received empty certificate from CA")
 	}
 
 	// 6. Encode Private Key to PEM
@@ -108,10 +120,29 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 	return SaveIdentity(username, certPEM, keyPEM, cfg.WalletPath)
 }
 
-// RegisterUser (Stub) - needs Admin Token
+// RegisterUser calls CLI to register user (requires Admin already enrolled in CLI or using bootstrap credentials)
 func RegisterUser(cfg CAConfig, username, secret string) (string, error) {
-	// Not implemented in HTTP mode for now.
-	// We assume users (e.g. admin) are already registered or registered via CLI.
-	// Login (Enroll) works if already registered.
-	return "", nil
+	// Step 1: Enroll Admin locally (in container) to get signing certs
+	enrollCmd := exec.Command("docker", "exec", "ca_org1", "fabric-ca-client", "enroll",
+		"-u", "http://admin:adminpw@localhost:7054",
+	)
+	if out, err := enrollCmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("admin enroll failed: %v, output: %s", err, string(out))
+	}
+
+	// Step 2: Register the new user
+	cmd := exec.Command("docker", "exec", "ca_org1", "fabric-ca-client", "register",
+		"--caname", "ca-org1",
+		"--id.name", username,
+		"--id.secret", secret,
+		"--id.type", "client",
+		"-u", "http://localhost:7054",
+	)
+	
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("register failed: %v, output: %s", err, string(output))
+	}
+	
+	return string(output), nil
 }

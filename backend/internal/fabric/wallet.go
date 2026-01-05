@@ -1,6 +1,8 @@
 package fabric
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,7 +68,16 @@ func GetIdentity(username string, walletPath string) (*identity.X509Identity, id
 	
 	privateKey, err := identity.PrivateKeyFromPEM(privateKeyPEM)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse private key: %v", err)
+		// Fallback for SEC1/EC Private Key if standard parser fails
+		block, _ := pem.Decode(privateKeyPEM)
+		if block != nil && block.Type == "EC PRIVATE KEY" {
+			privateKey, err = x509.ParseECPrivateKey(block.Bytes)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to parse EC private key: %v", err)
+			}
+		} else {
+			return nil, nil, fmt.Errorf("failed to parse private key: %v", err)
+		}
 	}
 
 	sign, err := identity.NewPrivateKeySign(privateKey)

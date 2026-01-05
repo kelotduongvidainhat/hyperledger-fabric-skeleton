@@ -53,9 +53,9 @@ func main() {
 
 	// 2. Setup Auth Handler
 	// CA URL is usually localhost:7054 for Org1 CA
-	// TLS is enabled, so use https. Insecure=true in ca.go handles self-signed certs.
+	// TLS is disabled.
 	caCfg := fabric.CAConfig{
-		URL:        "https://localhost:7054",
+		URL:        "http://localhost:7054",
 		MSPID:      "Org1MSP",
 		WalletPath: walletPath,
 		AdminPath:  cryptoPath + "/users/Admin@org1.example.com/msp",
