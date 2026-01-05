@@ -1,19 +1,23 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import AssetDashboard from './pages/AssetDashboard';
+import Layout from './components/Layout';
+import Dashboard from './pages/Dashboard';
+import CreateAsset from './pages/CreateAsset';
+import AssetDetails from './pages/AssetDetails';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
-const PrivateRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div className="p-10 text-center">Loading registry...</div>;
   }
 
-  if (!user) {
-    return <Navigate to="/login" />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return children;
@@ -21,22 +25,39 @@ const PrivateRoute = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/" element={
-              <PrivateRoute>
-                <AssetDashboard />
-              </PrivateRoute>
-            } />
-          </Routes>
-        </div>
-      </AuthProvider>
-    </Router>
-  )
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Layout>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/create" element={
+            <ProtectedRoute>
+              <Layout>
+                <CreateAsset />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/assets/:id" element={
+            <ProtectedRoute>
+              <Layout>
+                <AssetDetails />
+              </Layout>
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
 }
 
-export default App
+export default App;

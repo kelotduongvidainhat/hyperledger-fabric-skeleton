@@ -1,62 +1,51 @@
-# Project Roadmap: Hyperledger Fabric Asset Management
+# Project Roadmap: Hyperledger Fabric Ownership Registry
 
-## 📌 Phase 1: Foundation (COMPLETED) ✅
-*Focus: Stable Infrastructure & Core Functionality*
+This roadmap outlines the future development and milestones for the Ownership Registry application, building upon the current MVP foundation.
 
-- [x] **Network Setup**: One Organization, 3 Raft Orderers, 2 Peers, 2 CAs.
-- [x] **Smart Contract**: Asset Transfer (Go) with Lock/Unlock, History, and Timestamping.
-- [x] **Backend API**: Go (Gin) using Fabric Gateway SDK.
-- [x] **Database Integration**: PostgreSQL off-chain sync via Chaincode Events.
-- [x] **Identity Management**: Strict NodeOU support (Admin, Client, Peer, Orderer).
-- [x] **Frontend**: Basic React Dashboard (View/Add Assets).
-- [x] **DevOps**: `fresh-start.sh` automation for rapid reset and deployment.
+## Phase 1: MVP Foundation (Completed ✅)
+- [x] **Network Infrastructure**: 2 Organizations, 1 Orderer (OSNAdmin managed), CaaS Chaincode.
+- [x] **Smart Contract**: Go Chaincode with `CreateAsset`, `ReadAsset`, `ProposeTransfer`, `AcceptTransfer`, `GetAssetHistory`, `GetAllAssets`.
+- [x] **Backend API**: Go/Fiber REST API integrated with Fabric Gateway SDK.
+- [x] **Frontend UI**: React + Vite + Tailwind CSS ("Parchment & Ink" design) with Dashboard and Transfer workflows.
 
 ---
 
-## 🚀 Phase 2: Enhanced Application Logic (Current Focus)
-*Focus: User Experience & Business Rules*
+## Phase 2: Role-Based Access & UI (Short Term)
+- [ ] **Role Management**:
+    - **Admin**: Full dashboard stats, User Management (Approvals/Ban), System Configuration.
+    - **Auditor**: Read-only access to full history logs, compliance reporting view.
+    - **User**: Standard Asset Management (Create, Transfer, View Own Assets).
+- [ ] **Real Authentication**: Replace dummy "Logged in via Gateway" with real JWT-based authentication.
+    - Integrate `fabric-ca-client` to register/enroll users via API.
+    - Implement Login endpoint returning JWT with embedded roles.
+- [ ] **Object Storage (MinIO)**:
+    - Deploy MinIO (S3-compatible) container.
+    - Backend: Implement file upload endpoint (`POST /upload`) to push images to MinIO.
+- [ ] **UI Enhancements**:
+    - **Admin Panel**: Dedicated route `/admin` for user oversight.
+    - **Auditor View**: Advanced filtering and report generation.
+    - **User Wallet**: UI for managing personal keys/identities.
 
-- [ ] **Dynamic User Enrollment**
-    - [ ] Backend API to register/enroll new users via Fabric CA.
-    - [ ] Frontend "Sign Up" / "Login" page.
-    - [ ] Wallet management (store credentials securely in browser/backend).
+## Phase 3: Advanced Features (Medium Term)
+- [ ] **IPFS Integration**:
+    - Transition from centralized MinIO to decentralized IPFS for robust, censorship-resistant storage.
+    - Store the IPFS Content ID (CID) on-chain.
+- [ ] **Private Data Collections (PDC)**:
+    - Update Chaincode to support private pricing or metadata that is shared only between Buyer and Seller, not the whole network.
+- [ ] **Complex Transfer Logic**:
+    - Implement "Offer/Bid" mechanism with price negotiation on-chain.
+    - Add "Escrow" functionality.
 
-- [ ] **Access Control (ABAC/RBAC)**
-    - [ ] Enforce `"Owner"` check in Chaincode for `UpdateAsset`/`TransferAsset`.
-    - [ ] Add `GetAssetsByOwner` query.
-    - [ ] Frontend: "My Assets" vs "Marketplace" view.
+## Phase 4: Production Readiness (Long Term)
+- [ ] **Kubernetes Deployment**:
+    - Migrate from `docker-compose` to K8s (using Fabric Operator).
+- [ ] **Monitoring & Logging**:
+    - Integrate Prometheus & Grafana for network metrics.
+    - ELK Stack for chaincode and peer logs.
+- [ ] **High Availability**:
+    - Add multiple Orderers (Raft consensus verification).
+    - Add multiple Peers per Organization with Gossip properly configured.
 
-- [ ] **Asset History Visualization**
-    - [ ] Enhance Frontend to display the timeline of asset modifications (provenance).
-    - [ ] Show "Locked" status history.
-
----
-
-## 🌐 Phase 3: Network Expansion
-*Focus: Real-world Simulation*
-
-- [ ] **Add Organization 2**
-    - [ ] Update `configtx.yaml` & `crypto-config`.
-    - [ ] Join Org2 Peers to `mychannel`.
-    - [ ] Update Chaincode Endorsement Policy (`AND('Org1.member', 'Org2.member')`).
-
-- [ ] **Private Data Collections (PDC)**
-    - [ ] Implement implicit private data for sensitive fields (e.g., Appraisal Value).
-    - [ ] Update Chaincode to handle transient data.
-
----
-
-## 🛠 Phase 4: Production Hardening
-*Focus: Security & Scalability*
-
-- [ ] **Kubernetes Migration**
-    - [ ] Port Docker Compose setup to K8s manifests (or Fabric Operator).
-    - [ ] Setup Ingress for Backend/Fabric interaction.
-
-- [ ] **Monitoring & Logging**
-    - [ ] Integrate Prometheus/Grafana for Peer metrics.
-    - [ ] Centralized logging (ELK/Loki) for Chaincode/Backend logs.
-
-- [ ] **CI/CD Pipeline**
-    - [ ] Automated Chaincode Tests (GitHub Actions).
-    - [ ] Linting & Security Scans (`gosec`).
+## Phase 5: Expansion
+- [ ] **Multi-Channel Support**: create separate channels for different asset classes.
+- [ ] **Cross-Chain Interoperability**: Explore Hyperledger Cactus/Centi for bridging with Ethereum.

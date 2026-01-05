@@ -1,64 +1,75 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { Key } from 'lucide-react';
 
 const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const { login } = useAuth();
+    const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        try {
-            // For this skeleton, we hit the backend login endpoint
-            // Adjust URL as needed
-            const response = await axios.post('http://localhost:8080/auth/login', {
-                username,
-                password
-            });
-
-            if (response.status === 200) {
-                login({ username });
-                // Redirect handled by parent or router
-            }
-        } catch (err) {
-            setError(err.response?.data?.error || 'Login failed');
+        setError('');
+        const success = await login(username, password);
+        if (success) {
+            navigate('/');
+        } else {
+            setError('Invalid credentials');
         }
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <div className="p-6 bg-white rounded shadow-md w-96">
-                <h2 className="mb-4 text-2xl font-bold text-center">Login</h2>
-                {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
-                <form onSubmit={handleSubmit}>
-                    <div className="mb-4">
-                        <label className="block mb-2 text-sm font-bold text-gray-700">Username</label>
+        <div className="flex items-center justify-center min-h-screen bg-parchment-white text-ink-charcoal font-sans">
+            <div className="w-full max-w-md p-8 bg-antique-beige rounded-lg shadow-lg border border-bronze/30">
+                <div className="flex justify-center mb-6">
+                    <div className="p-3 bg-white rounded-full border border-bronze/50">
+                        <Key className="w-8 h-8 text-wax-red" />
+                    </div>
+                </div>
+                <h2 className="text-3xl font-serif text-center mb-6 text-ink-sepia">Access Registry</h2>
+
+                {error && (
+                    <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm text-center">
+                        {error}
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Identity ID</label>
                         <input
                             type="text"
+                            className="w-full p-2 border border-bronze/30 rounded focus:ring-2 focus:ring-wax-red focus:border-transparent bg-white/50"
+                            placeholder="e.g. admin"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            className="w-full px-3 py-2 border rounded"
-                            required
                         />
                     </div>
-                    <div className="mb-6">
-                        <label className="block mb-2 text-sm font-bold text-gray-700">Password</label>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Secret</label>
                         <input
                             type="password"
+                            className="w-full p-2 border border-bronze/30 rounded focus:ring-2 focus:ring-wax-red focus:border-transparent bg-white/50"
+                            placeholder="••••••"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-3 py-2 border rounded"
-                            required
                         />
                     </div>
+
                     <button
                         type="submit"
-                        className="w-full px-4 py-2 font-bold text-white bg-blue-500 rounded hover:bg-blue-700"
+                        className="w-full py-2 bg-wax-red text-white font-serif font-bold rounded hover:bg-red-900 transition-colors shadow-md"
                     >
-                        Sign In
+                        Authenticate
                     </button>
+
+                    <div className="text-center text-sm text-ink-sepia/70 mt-4">
+                        <span>New to the registry? </span>
+                        <span className="font-semibold cursor-not-allowed">Contact Admin to Enroll</span>
+                    </div>
                 </form>
             </div>
         </div>

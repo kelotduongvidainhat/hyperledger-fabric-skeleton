@@ -5,7 +5,7 @@ A comprehensive starter template for building production-grade Hyperledger Fabri
 ## 🌟 Key Features
 
 - **Full Stack Architecture:** 
-  - **Blockchain:** Hyperledger Fabric 2.5 (1 Org, 3 Orderers)
+  - **Blockchain:** Hyperledger Fabric 2.5 (2 Orgs, 1 Orderer)
   - **Chaincode:** Go (Asset Transfer + User Management)
   - **Backend:** Go/Gin REST API with Fabric SDK
   - **Frontend:** React/Vite with Tailwind CSS

@@ -4,8 +4,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"strings"
-	"time"
+
 
 	"github.com/hyperledger/fabric-gateway/pkg/client"
 	"github.com/hyperledger/fabric-gateway/pkg/identity"
@@ -13,133 +12,79 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-const (
-	mspID         = "Org1MSP"
-	cryptoPath    = "/home/qwe/hyperledger-fabric-skeleton/network/crypto-config/peerOrganizations/org1.example.com"
-	tlsCertPath   = cryptoPath + "/peers/peer0.org1.example.com/tls/ca.crt"
-	peerEndpoint  = "localhost:7051"
-	gatewayPeer   = "peer0.org1.example.com"
-	channelName   = "mychannel"
-	chaincodeName = "asset-transfer"
-)
-
-// FabricClient manages the connection to the Fabric network
-type FabricClient struct {
-	Connection *grpc.ClientConn
-	Store      *EnrollmentStore
-	Network    *client.Network
-	CAClient   *CAClient
+// Config holds connection details
+type Config struct {
+	CertPath      string
+	KeyPath       string
+	TlsCertPath   string
+	PeerEndpoint  string
+	GatewayPeer   string
+	ChannelName   string
+	ChaincodeName string
 }
 
-// NewFabricClient initializes the gRPC connection and enrollment store
-func NewFabricClient() (*FabricClient, error) {
-	clientConnection, err := newGrpcConnection()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gRPC connection: %w", err)
-	}
-
-	// Initialize store pointing to crypto-config for now (User1/Admin simulation)
-	// In production, this would point to a secure wallet directory
-	store := NewEnrollmentStore(cryptoPath + "/users")
-
-	// Initialize basic gateway connection for event listener (using Admin)
-	id, err := store.GetIdentity("Admin@org1.example.com", mspID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load admin identity: %w", err)
-	}
-	sign, err := store.GetSigner("Admin@org1.example.com")
-	if err != nil {
-		return nil, fmt.Errorf("failed to load admin signer: %w", err)
-	}
-
-	gw, err := client.Connect(
-		id,
-		client.WithSign(sign),
-		client.WithClientConnection(clientConnection),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to gateway: %w", err)
-	}
-
-	network := gw.GetNetwork(channelName)
-
-	// Initialize CA Client
-	caCertPath := cryptoPath + "/ca/ca.org1.example.com-cert.pem"
-	caClient, err := NewCAClient("https://localhost:7054", cryptoPath+"/users", caCertPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize CA client: %w", err)
-	}
-
-	return &FabricClient{
-		Connection: clientConnection,
-		Store:      store,
-		Network:    network,
-		CAClient:   caClient,
-	}, nil
-}
-
-// executeAction creates a gateway connection for the user and runs the action
-func (f *FabricClient) executeAction(userID string, action func(*client.Contract) (interface{}, error)) (interface{}, error) {
-	// 1. Load Identity
-	// Map userID to the enrolled identity
-	var label string
-	if userID == "" || strings.ToLower(userID) == "admin" {
-		label = "Admin@org1.example.com"
-	} else {
-		// Construct label dynamically: e.g. "user1" -> "user1@org1.example.com"
-		label = fmt.Sprintf("%s@org1.example.com", userID)
-	}
-
-	id, err := f.Store.GetIdentity(label, mspID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load identity for %s: %w", userID, err)
-	}
-
-	sign, err := f.Store.GetSigner(label)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load signer for %s: %w", userID, err)
-	}
-
-	// 2. Connect to Gateway
-	gw, err := client.Connect(
-		id,
-		client.WithSign(sign),
-		client.WithClientConnection(f.Connection),
-		client.WithEvaluateTimeout(5*time.Second),
-		client.WithEndorseTimeout(15*time.Second),
-		client.WithSubmitTimeout(5*time.Second),
-		client.WithCommitStatusTimeout(1*time.Minute),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to gateway: %w", err)
-	}
-	defer gw.Close()
-
-	// 3. Get Contract
-	network := gw.GetNetwork(channelName)
-	contract := network.GetContract(chaincodeName)
-
-	// 4. Run Action
-	return action(contract)
-}
-
-// newGrpcConnection creates a gRPC connection to the Gateway server.
-func newGrpcConnection() (*grpc.ClientConn, error) {
-	certificate, err := loadCertificate(tlsCertPath)
-	if err != nil {
-		return nil, err
-	}
-
+// CreateGRPCConnection creates a gRPC connection to the peer
+func CreateGRPCConnection(cfg Config) (*grpc.ClientConn, error) {
 	certPool := x509.NewCertPool()
-	certPool.AddCert(certificate)
-	transportCredentials := credentials.NewClientTLSFromCert(certPool, gatewayPeer)
+	tlsCert, err := ioutil.ReadFile(cfg.TlsCertPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read TLS cert: %w", err)
+	}
+	if !certPool.AppendCertsFromPEM(tlsCert) {
+		return nil, fmt.Errorf("failed to append TLS cert")
+	}
 
-	connection, err := grpc.Dial(peerEndpoint, grpc.WithTransportCredentials(transportCredentials))
+	transportCreds := credentials.NewClientTLSFromCert(certPool, "")
+
+	conn, err := grpc.Dial(cfg.PeerEndpoint, grpc.WithTransportCredentials(transportCreds))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC connection: %w", err)
 	}
 
-	return connection, nil
+	return conn, nil
+}
+
+// CreateGateway creates a Gateway instance for a specific user identity
+func CreateGateway(conn *grpc.ClientConn, id *identity.X509Identity, sign identity.Sign) (*client.Gateway, error) {
+	gateway, err := client.Connect(
+		id,
+		client.WithSign(sign),
+		client.WithClientConnection(conn),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to gateway: %w", err)
+	}
+
+	return gateway, nil
+}
+
+// SetupConnection (Legacy/Admin) - wraps the above for initial Admin setup
+func SetupConnection(cfg Config) (*grpc.ClientConn, *client.Gateway, error) {
+	conn, err := CreateGRPCConnection(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Load Admin Identity
+	certificate, err := loadCertificate(cfg.CertPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	id, err := identity.NewX509Identity("Org1MSP", certificate)
+	if err != nil {
+		return nil, nil, err
+	}
+	signer, err := loadPrivateKey(cfg.KeyPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	gw, err := CreateGateway(conn, id, signer)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return conn, gw, nil
 }
 
 func loadCertificate(filename string) (*x509.Certificate, error) {
@@ -150,28 +95,21 @@ func loadCertificate(filename string) (*x509.Certificate, error) {
 	return identity.CertificateFromPEM(certificatePEM)
 }
 
-// GetAssetHistory returns the history of the asset
-func (f *FabricClient) GetAssetHistory(userID, assetID string) (string, error) {
-	result, err := f.executeAction(userID, func(contract *client.Contract) (interface{}, error) {
-		result, err := contract.EvaluateTransaction("GetAssetHistory", assetID)
-		if err != nil {
-			return nil, err // Return original error for clearer debugging
-		}
-		if len(result) == 0 {
-			return "[]", nil
-		}
-		return string(result), nil
-	})
-
+func loadPrivateKey(filename string) (identity.Sign, error) {
+	privateKeyPEM, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to read private key file: %w", err)
 	}
-	return result.(string), nil
-}
 
-// Close closes the gRPC connection
-func (f *FabricClient) Close() {
-	if f.Connection != nil {
-		f.Connection.Close()
+	privateKey, err := identity.PrivateKeyFromPEM(privateKeyPEM)
+	if err != nil {
+		return nil, err
 	}
+
+	sign, err := identity.NewPrivateKeySign(privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return sign, nil
 }

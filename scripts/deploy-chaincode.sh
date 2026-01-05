@@ -1,173 +1,77 @@
 #!/bin/bash
-
-# Asset Transfer Chaincode Deployment Script
-# This script packages, installs, approves, and commits the chaincode
-
 set -e
 
-# Colors for output
-GREEN='\033[0.32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Setup environment variables
+export PATH=${PWD}/bin:$PATH
+export FABRIC_CFG_PATH=${PWD}/config
+export VERBOSE=false
 
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}Asset Transfer Chaincode Deployment${NC}"
-echo -e "${GREEN}========================================${NC}"
-echo ""
+# Chaincode details
+CC_NAME="basic"
+CC_SRC_PATH="${PWD}/chaincode"
+CC_VERSION="1.0"
+CC_SEQUENCE="1"
 
-# Configuration
-CHAINCODE_NAME="asset-transfer"
-CHAINCODE_VERSION="1.0"
-CHAINCODE_SEQUENCE="1"
-CHANNEL_NAME="mychannel"
-CHAINCODE_PATH="../chaincode/asset-transfer"
-ORDERER_CA=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+echo "🚀 Deploying Chaincode '$CC_NAME'..."
 
-# Step 1: Package the chaincode
-echo -e "${YELLOW}Step 1: Packaging chaincode...${NC}"
-cd /opt/gopath/src/github.com/chaincode
-peer lifecycle chaincode package ${CHAINCODE_NAME}.tar.gz \
-    --path ${CHAINCODE_PATH} \
-    --lang golang \
-    --label ${CHAINCODE_NAME}_${CHAINCODE_VERSION}
+# Helper functions to switch context
+setOrg1() {
+    export CORE_PEER_LOCALMSPID="Org1MSP"
+    export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/network/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+    export CORE_PEER_MSPCONFIGPATH=${PWD}/network/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+    export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+}
 
-echo -e "${GREEN}✓ Chaincode packaged successfully${NC}"
-echo ""
+setOrg2() {
+    export CORE_PEER_LOCALMSPID="Org2MSP"
+    export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/network/crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
+    export CORE_PEER_MSPCONFIGPATH=${PWD}/network/crypto-config/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
+    export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
+}
 
-# Step 2: Install on Org1 Peer
-echo -e "${YELLOW}Step 2: Installing chaincode on Org1 peer...${NC}"
-export CORE_PEER_LOCALMSPID=Org1MSP
-export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
-export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
-export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+# 1. Package Chaincode
+echo "📦 Packaging chaincode..."
+peer lifecycle chaincode package ${CC_NAME}.tar.gz --path ${CC_SRC_PATH} --lang golang --label ${CC_NAME}_${CC_VERSION}
 
-peer lifecycle chaincode install ${CHAINCODE_NAME}.tar.gz
+# 2. Install Chaincode (Org1)
+echo "💿 Installing chaincode on Org1..."
+setOrg1
+peer lifecycle chaincode install ${CC_NAME}.tar.gz
+PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep ${CC_NAME}_${CC_VERSION} | awk -F "[, ]" '{print $3}')
+echo "   Package ID: $PACKAGE_ID"
 
-echo -e "${GREEN}✓ Chaincode installed on Org1 peer${NC}"
-echo ""
+# 3. Install Chaincode (Org2)
+echo "💿 Installing chaincode on Org2..."
+setOrg2
+peer lifecycle chaincode install ${CC_NAME}.tar.gz
 
-# Step 3: Install on Org2 Peer
-echo -e "${YELLOW}Step 3: Installing chaincode on Org2 peer...${NC}"
-export CORE_PEER_LOCALMSPID=Org2MSP
-export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
-export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/users/Admin@org2.example.com/msp
-export CORE_PEER_ADDRESS=peer0.org2.example.com:9051
+# 4. Approve Chaincode (Org1)
+echo "👍 Approving chaincode for Org1..."
+setOrg1
+peer lifecycle chaincode approveformyorg -o orderer.example.com:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name ${CC_NAME} --version ${CC_VERSION} --package-id ${PACKAGE_ID} --sequence ${CC_SEQUENCE} --tls --cafile ${PWD}/network/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
 
-peer lifecycle chaincode install ${CHAINCODE_NAME}.tar.gz
+# 5. Approve Chaincode (Org2)
+echo "👍 Approving chaincode for Org2..."
+setOrg2
+peer lifecycle chaincode approveformyorg -o orderer.example.com:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name ${CC_NAME} --version ${CC_VERSION} --package-id ${PACKAGE_ID} --sequence ${CC_SEQUENCE} --tls --cafile ${PWD}/network/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
 
-echo -e "${GREEN}✓ Chaincode installed on Org2 peer${NC}"
-echo ""
+# 6. Check Commit Readiness
+echo "🕵️ Checking commit readiness..."
+peer lifecycle chaincode checkcommitreadiness --channelID mychannel --name ${CC_NAME} --version ${CC_VERSION} --sequence ${CC_SEQUENCE} --tls --cafile ${PWD}/network/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem --output json
 
-# Step 4: Query installed chaincode to get package ID
-echo -e "${YELLOW}Step 4: Querying installed chaincode...${NC}"
-peer lifecycle chaincode queryinstalled > installed.txt
-PACKAGE_ID=$(sed -n "/${CHAINCODE_NAME}_${CHAINCODE_VERSION}/{s/^Package ID: //; s/, Label:.*$//; p;}" installed.txt)
-echo "Package ID: ${PACKAGE_ID}"
-echo -e "${GREEN}✓ Package ID retrieved${NC}"
-echo ""
+# 7. Commit Chaincode Definition
+echo "🚀 Committing chaincode definition..."
+peer lifecycle chaincode commit -o orderer.example.com:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name ${CC_NAME} --version ${CC_VERSION} --sequence ${CC_SEQUENCE} --tls --cafile ${PWD}/network/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem --peerAddresses peer0.org1.example.com:7051 --tlsRootCertFiles ${PWD}/network/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses peer0.org2.example.com:9051 --tlsRootCertFiles ${PWD}/network/crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
 
-# Step 5: Approve for Org2
-echo -e "${YELLOW}Step 5: Approving chaincode for Org2...${NC}"
-peer lifecycle chaincode approveformyorg \
-    -o orderer.example.com:7050 \
-    --ordererTLSHostnameOverride orderer.example.com \
-    --channelID ${CHANNEL_NAME} \
-    --name ${CHAINCODE_NAME} \
-    --version ${CHAINCODE_VERSION} \
-    --package-id ${PACKAGE_ID} \
-    --sequence ${CHAINCODE_SEQUENCE} \
-    --tls \
-    --cafile $ORDERER_CA
+echo "✅ Chaincode deployed successfully!"
 
-echo -e "${GREEN}✓ Chaincode approved for Org2${NC}"
-echo ""
+# 8. Init Ledger (Optional verify)
+echo "⚡ Invoking InitLedger..."
+setOrg1
+peer chaincode invoke -o orderer.example.com:7050 --ordererTLSHostnameOverride orderer.example.com --channelID mychannel --name ${CC_NAME} --tls --cafile ${PWD}/network/crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem --peerAddresses peer0.org1.example.com:7051 --tlsRootCertFiles ${PWD}/network/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt --peerAddresses peer0.org2.example.com:9051 --tlsRootCertFiles ${PWD}/network/crypto-config/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt -c '{"function":"InitLedger","Args":[]}'
 
-# Step 6: Approve for Org1
-echo -e "${YELLOW}Step 6: Approving chaincode for Org1...${NC}"
-export CORE_PEER_LOCALMSPID=Org1MSP
-export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
-export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
-export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
+sleep 2
+echo "🔍 Querying ReadAsset 'asset1'..."
+peer chaincode query -C mychannel -n ${CC_NAME} -c '{"Args":["ReadAsset","asset1"]}'
 
-peer lifecycle chaincode approveformyorg \
-    -o orderer.example.com:7050 \
-    --ordererTLSHostnameOverride orderer.example.com \
-    --channelID ${CHANNEL_NAME} \
-    --name ${CHAINCODE_NAME} \
-    --version ${CHAINCODE_VERSION} \
-    --package-id ${PACKAGE_ID} \
-    --sequence ${CHAINCODE_SEQUENCE} \
-    --tls \
-    --cafile $ORDERER_CA
-
-echo -e "${GREEN}✓ Chaincode approved for Org1${NC}"
-echo ""
-
-# Step 7: Check commit readiness
-echo -e "${YELLOW}Step 7: Checking commit readiness...${NC}"
-peer lifecycle chaincode checkcommitreadiness \
-    --channelID ${CHANNEL_NAME} \
-    --name ${CHAINCODE_NAME} \
-    --version ${CHAINCODE_VERSION} \
-    --sequence ${CHAINCODE_SEQUENCE} \
-    --tls \
-    --cafile $ORDERER_CA \
-    --output json
-
-echo -e "${GREEN}✓ Commit readiness checked${NC}"
-echo ""
-
-# Step 8: Commit chaincode definition
-echo -e "${YELLOW}Step 8: Committing chaincode definition...${NC}"
-peer lifecycle chaincode commit \
-    -o orderer.example.com:7050 \
-    --ordererTLSHostnameOverride orderer.example.com \
-    --channelID ${CHANNEL_NAME} \
-    --name ${CHAINCODE_NAME} \
-    --version ${CHAINCODE_VERSION} \
-    --sequence ${CHAINCODE_SEQUENCE} \
-    --tls \
-    --cafile $ORDERER_CA \
-    --peerAddresses peer0.org1.example.com:7051 \
-    --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
-    --peerAddresses peer0.org2.example.com:9051 \
-    --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
-
-echo -e "${GREEN}✓ Chaincode committed successfully${NC}"
-echo ""
-
-# Step 9: Query committed chaincode
-echo -e "${YELLOW}Step 9: Querying committed chaincode...${NC}"
-peer lifecycle chaincode querycommitted --channelID ${CHANNEL_NAME} --name ${CHAINCODE_NAME}
-
-echo -e "${GREEN}✓ Chaincode query completed${NC}"
-echo ""
-
-# Step 10: Initialize the ledger
-echo -e "${YELLOW}Step 10: Initializing ledger...${NC}"
-peer chaincode invoke \
-    -o orderer.example.com:7050 \
-    --ordererTLSHostnameOverride orderer.example.com \
-    --tls \
-    --cafile $ORDERER_CA \
-    -C ${CHANNEL_NAME} \
-    -n ${CHAINCODE_NAME} \
-    --peerAddresses peer0.org1.example.com:7051 \
-    --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt \
-    --peerAddresses peer0.org2.example.com:9051 \
-    --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt \
-    -c '{"function":"InitLedger","Args":[]}'
-
-echo -e "${GREEN}✓ Ledger initialized${NC}"
-echo ""
-
-# Step 11: Query all assets
-echo -e "${YELLOW}Step 11: Querying all assets...${NC}"
-sleep 3
-peer chaincode query -C ${CHANNEL_NAME} -n ${CHAINCODE_NAME} -c '{"Args":["GetAllAssets"]}'
-
-echo ""
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}✓ Chaincode deployment completed!${NC}"
-echo -e "${GREEN}========================================${NC}"
+echo "🎉 All Done!"

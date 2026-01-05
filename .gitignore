@@ -5,7 +5,7 @@ network/docker/volumes/
 *.tar.gz
 *.block
 *.tx
-connection.json
+
 
 # Binaries
 bin/

@@ -1,38 +1,57 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { api } from '../api/client';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [token, setToken] = useState(localStorage.getItem('token'));
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check if user is logged in from local storage
-        const storedUser = localStorage.getItem('fabric_user');
-        if (storedUser) {
-            const parsedUser = JSON.parse(storedUser);
-            setUser(parsedUser);
-            axios.defaults.headers.common['X-User-ID'] = parsedUser.username;
+        // Check if token exists on mount
+        if (token) {
+            // Ideally we validate the token with backend, but for MVP we assume validity if present
+            // decoding logic could be added here
+            const savedUser = localStorage.getItem('username');
+            if (savedUser) {
+                setUser({ username: savedUser });
+                setIsAuthenticated(true);
+            }
         }
         setLoading(false);
-    }, []);
+    }, [token]);
 
-    const login = (userData) => {
-        setUser(userData);
-        localStorage.setItem('fabric_user', JSON.stringify(userData));
-        axios.defaults.headers.common['X-User-ID'] = userData.username;
+    const login = async (username, password) => {
+        try {
+            const response = await api.post('/auth/login', { username, password });
+            const { token: newToken, username: newUsername } = response.data;
+
+            localStorage.setItem('token', newToken);
+            localStorage.setItem('username', newUsername);
+
+            setToken(newToken);
+            setUser({ username: newUsername });
+            setIsAuthenticated(true);
+            return true;
+        } catch (error) {
+            console.error("Login failed", error);
+            return false;
+        }
     };
 
     const logout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        setToken(null);
         setUser(null);
-        localStorage.removeItem('fabric_user');
-        delete axios.defaults.headers.common['X-User-ID'];
+        setIsAuthenticated(false);
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading }}>
-            {!loading && children}
+        <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, loading }}>
+            {children}
         </AuthContext.Provider>
     );
 };
