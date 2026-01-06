@@ -12,8 +12,8 @@ import (
 
 // AuthHandler holds dependencies
 type AuthHandler struct {
-	CAConfig fabric.CAConfig
-	DB       *gorm.DB
+	CAConfigs map[string]fabric.CAConfig
+	DB        *gorm.DB
 }
 
 // Login handles user authentication (Enrollment + JWT)
@@ -28,10 +28,21 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
 	}
 
-	// 1. Enroll with CA (verify credentials)
-	// This ensures the user exists and password is correct.
-	// It also refreshes the certs in the wallet.
-	err := fabric.EnrollUser(h.CAConfig, req.Username, req.Password)
+	// 1. Find the correct CA and Enroll
+	// If the user doesn't specify an org, we try all of them
+	// In a real app, you'd probably have an org dropdown on login or derive it from the username
+	token := ""
+	var err error
+	var finalCfg fabric.CAConfig
+
+	for _, cfg := range h.CAConfigs {
+		err = fabric.EnrollUser(cfg, req.Username, req.Password)
+		if err == nil {
+			finalCfg = cfg
+			break
+		}
+	}
+
 	if err != nil {
 		log.Printf("Enroll failed for %s: %v", req.Username, err)
 		return c.Status(401).JSON(fiber.Map{"error": "Authentication failed"})
@@ -44,10 +55,16 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		if user.Status == "BANNED" {
 			return c.Status(403).JSON(fiber.Map{"error": "Your account has been banned. Contact Admin."})
 		}
+		// Backfill Org if missing
+		if user.Org == "" && req.Username != "admin" {
+			user.Org = finalCfg.MSPID
+			h.DB.Save(&user)
+		}
 	} else if req.Username != "admin" {
 		// If user exists in CA but not in DB, create it (backfill)
 		user = models.User{
 			Username: req.Username,
+			Org:      finalCfg.MSPID,
 			Role:     "user",
 			Status:   "ACTIVE", // Auto-active for previously registered users
 			Email:    req.Username + "@example.org",
@@ -64,7 +81,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	// 4. Generate JWT
-	token, err := auth.GenerateToken(req.Username, role)
+	token, err = auth.GenerateToken(req.Username, role)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Token generation failed"})
 	}
@@ -83,6 +100,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		Username string `json:"username"`
 		Password string `json:"password"`
 		Email    string `json:"email"`
+		Org      string `json:"org"` // Org1MSP or Org2MSP
 	}
 
 	var req RegisterReq
@@ -90,10 +108,22 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
 	}
 
+	// TODO: get MSPID in smart contract
+	// Determine CA Config
+	org := req.Org
+	if org == "" {
+		org = "Org1MSP" // Default
+	}
+
+	cfg, ok := h.CAConfigs[org]
+	if !ok {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid organization"})
+	}
+
 	// Call Fabric CA Registration
-	resp, err := fabric.RegisterUser(h.CAConfig, req.Username, req.Password)
+	resp, err := fabric.RegisterUser(cfg, req.Username, req.Password)
 	if err != nil {
-		log.Printf("Register failed for %s: %v", req.Username, err)
+		log.Printf("Register failed for %s on %s: %v", req.Username, org, err)
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Registration failed: %v", err)})
 	}
 
@@ -101,6 +131,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	dbUser := models.User{
 		Username: req.Username,
 		Email:    req.Email,
+		Org:      org,
 		Role:     "user",
 		Status:   "PENDING", // Wait for Admin Approval
 	}

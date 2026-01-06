@@ -5,6 +5,7 @@ import (
 	"backend/internal/auth"
 	"backend/internal/fabric"
 	"backend/internal/db"
+	"backend/internal/models"
 	"fmt"
 	"log"
 	"os"
@@ -61,18 +62,34 @@ func main() {
 	// 2. Setup Auth Handler
 	// CA URL is usually localhost:7054 for Org1 CA
 	// TLS is disabled.
-	caCfg := fabric.CAConfig{
-		URL:        "https://localhost:7054",
-		MSPID:      "Org1MSP",
-		WalletPath: walletPath,
-		AdminPath:  cryptoPath + "/users/Admin@org1.example.com/msp",
+	caCfg1 := fabric.CAConfig{
+		URL:           "https://localhost:7054",
+		MSPID:         "Org1MSP",
+		WalletPath:    walletPath,
+		AdminPath:     cryptoPath + "/users/Admin@org1.example.com/msp",
+		CAName:        "ca-org1",
+		ContainerName: "ca_org1",
+	}
+	caCfg2 := fabric.CAConfig{
+		URL:           "https://localhost:8054",
+		MSPID:         "Org2MSP",
+		WalletPath:    walletPath,
+		AdminPath:     cryptoPath + "/users/Admin@org2.example.com/msp",
+		CAName:        "ca-org2",
+		ContainerName: "ca_org2",
 	}
 	authHandler := &api.AuthHandler{
-		CAConfig: caCfg,
-		DB:       database,
+		CAConfigs: map[string]fabric.CAConfig{
+			"Org1MSP": caCfg1,
+			"Org2MSP": caCfg2,
+		},
+		DB: database,
 	}
 	adminHandler := &api.AdminHandler{
-		CAConfig:   caCfg,
+		CAConfigs: []fabric.CAConfig{
+			caCfg1,
+			caCfg2,
+		},
 		WalletPath: walletPath,
 		Config:     cfg,
 		Conn:       conn,
@@ -211,17 +228,25 @@ func main() {
 			return c.Status(400).SendString(err.Error())
 		}
 
+		// Automate Org::Username lookup
+		var targetUser models.User
+		if err := database.Where("username = ?", req.TargetUser).First(&targetUser).Error; err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": fmt.Sprintf("Target user %s not found in off-chain database", req.TargetUser)})
+		}
+		
+		fullTargetID := fmt.Sprintf("%s::%s", targetUser.Org, targetUser.Username)
+
 		gw, contract, err := getContract(c)
 		if err != nil {
 			return c.Status(401).SendString(err.Error())
 		}
 		defer gw.Close()
 
-		_, err = contract.SubmitTransaction("ProposeTransfer", id, req.TargetUser)
+		_, err = contract.SubmitTransaction("ProposeTransfer", id, fullTargetID)
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
-		return c.SendString("Transfer Proposed")
+		return c.SendString(fmt.Sprintf("Transfer Proposed to %s", fullTargetID))
 	})
 
 	api.Post("/:id/accept", func(c *fiber.Ctx) error {

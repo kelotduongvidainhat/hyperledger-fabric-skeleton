@@ -4,6 +4,7 @@ import (
 	"backend/internal/fabric"
 	"backend/internal/models"
 	"encoding/json"
+	"log"
 	"regexp"
 	"strings"
 
@@ -13,7 +14,7 @@ import (
 )
 
 type AdminHandler struct {
-	CAConfig   fabric.CAConfig
+	CAConfigs  []fabric.CAConfig
 	WalletPath string
 	Config     fabric.Config
 	Conn       interface{} // *grpc.ClientConn
@@ -33,6 +34,7 @@ type IdentityInfo struct {
 	Status   string `json:"status"`
 	Email    string `json:"email"`
 	Role     string `json:"role"`
+	Org      string `json:"org"`
 }
 
 func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
@@ -47,10 +49,7 @@ func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
 }
 
 func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
-	raw, err := fabric.ListIdentities(h.CAConfig)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
+	var allIdentities []IdentityInfo
 
 	// Fetch all DB users to match statuses
 	var dbUsers []models.User
@@ -60,40 +59,47 @@ func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 		dbMap[u.Username] = u
 	}
 
-	lines := strings.Split(strings.TrimSpace(raw), "\n")
-	var identities []IdentityInfo
-
 	reName := regexp.MustCompile(`Name: ([^,]+)`)
 	reType := regexp.MustCompile(`Type: ([^,]+)`)
 
-	for _, line := range lines {
-		nameMatch := reName.FindStringSubmatch(line)
-		typeMatch := reType.FindStringSubmatch(line)
+	for _, caCfg := range h.CAConfigs {
+		raw, err := fabric.ListIdentities(caCfg)
+		if err != nil {
+			log.Printf("Warning: failed to list identities from %s: %v", caCfg.MSPID, err)
+			continue
+		}
 
-		if len(nameMatch) > 1 && len(typeMatch) > 1 {
-			name := nameMatch[1]
-			status := "ACTIVE"
-			email := name + "@example.org"
-			role := "user"
+		lines := strings.Split(strings.TrimSpace(raw), "\n")
+		for _, line := range lines {
+			nameMatch := reName.FindStringSubmatch(line)
+			typeMatch := reType.FindStringSubmatch(line)
 
-			if dbUser, exists := dbMap[name]; exists {
-				status = dbUser.Status
-				email = dbUser.Email
-				role = dbUser.Role
+			if len(nameMatch) > 1 && len(typeMatch) > 1 {
+				name := nameMatch[1]
+				status := "ACTIVE"
+				email := name + "@example.org"
+				role := "user"
+
+				if dbUser, exists := dbMap[name]; exists {
+					status = dbUser.Status
+					email = dbUser.Email
+					role = dbUser.Role
+				}
+
+				allIdentities = append(allIdentities, IdentityInfo{
+					Name:     name,
+					Type:     typeMatch[1],
+					DBStatus: "Synced",
+					Status:   status,
+					Email:    email,
+					Role:     role,
+					Org:      caCfg.MSPID,
+				})
 			}
-
-			identities = append(identities, IdentityInfo{
-				Name:     name,
-				Type:     typeMatch[1],
-				DBStatus: "Synced",
-				Status:   status,
-				Email:    email,
-				Role:     role,
-			})
 		}
 	}
 
-	return c.JSON(fiber.Map{"identities": identities})
+	return c.JSON(fiber.Map{"identities": allIdentities})
 }
 
 func (h *AdminHandler) UpdateUserStatus(c *fiber.Ctx) error {

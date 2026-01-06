@@ -13,19 +13,18 @@ A **User** owns an **Asset**. The Asset's visibility is controlled by its `View`
 erDiagram
     USER ||--o{ ASSET : owns
     USER {
-        string ID PK "Unique User ID (e.g., user1)"
-        string Name "Full Name / Organization Name"
+        string Username PK "Unique Username within Organization"
+        string Org "Organization MSP ID (Org1MSP | Org2MSP)"
         string Email "Contact Information"
-        string Role "User | Auditor | Admin"
-        string Status "ACTIVE | SUSPENDED"
-        string PublicKey "For Signature Verification"
+        string Role "user | admin"
+        string Status "PENDING | ACTIVE | BANNED"
     }
     ASSET {
         string ID PK "Unique Asset ID"
         string Name "Resource Name"
         string Description "Details"
-        string OwnerID FK "Current Custodian"
-        string ProposedOwnerID FK "Recipient for Pending Transfer"
+        string OwnerID FK "Custodian ID (Format: OrgMSP::Username)"
+        string ProposedOwnerID FK "Recipient for Pending Transfer (Format: OrgMSP::Username)"
         string ImageURL "Link to external file"
         string ImageHash "Integrity Check (SHA256/IPFS)"
         enum Status "ACTIVE | FROZEN | DELETED | PENDING_TRANSFER"
@@ -46,13 +45,13 @@ erDiagram
   "ID": "asset101",
   "Name": "Legal Document A",
   "Description": "Notarized contract",
-  "OwnerID": "user1",
+  "OwnerID": "Org1MSP::charlie",
   "ProposedOwnerID": "",
   "ImageURL": "https://storage.example.com/asset101.jpg",
   "ImageHash": "e3b0c44298fc1c149afbf...",
   "Status": "ACTIVE", 
   "View": "Public",
-  "LastUpdatedBy": "user1",
+  "LastUpdatedBy": "Org1MSP::charlie",
   "LastUpdatedAt": "2023-01-01T12:00:00Z"
 }
 ```
@@ -73,21 +72,31 @@ erDiagram
 
 **Purpose**: High-speed filtering by Owner or Status.
 
+**Table: `users`**
+| Column | Type | Notes |
+| :--- | :--- | :--- |
+| `id` | SERIAL | Primary Key |
+| `username` | VARCHAR(64) | Unique Index |
+| `org` | VARCHAR(64) | Org1MSP or Org2MSP |
+| `email` | VARCHAR(255) | |
+| `role` | VARCHAR(20) | user, admin |
+| `status` | VARCHAR(20) | PENDING, ACTIVE, BANNED |
+
 **Table: `assets`**
 | Column | Type | Notes |
 | :--- | :--- | :--- |
 | `id` | VARCHAR(64) | Primary Key |
 | `name` | VARCHAR(255) | |
 | `description` | TEXT | |
-| `owner_id` | VARCHAR(64) | Indexed for "My Assets" queries |
-| `proposed_owner_id` | VARCHAR(64) | For pending transfers |
-| `image_url` | TEXT | External link |
-| `image_hash` | VARCHAR(128) | For integrity verification |
-| `status` | VARCHAR(20) | Enum: ACTIVE, PENDING_TRANSFER, FROZEN, DELETED |
-| `view_policy` | TEXT | JSON string or Array of allowed IDs |
-| `last_updated_by` | VARCHAR(64) | UserID who performed action |
-| `last_updated_at` | TIMESTAMP | ISO8601 Timestamp |
-| `updated_at` | TIMESTAMP | DB Sync Audit trail |
+| `owner_id` | VARCHAR(128) | Indexed |
+| `proposed_owner_id` | VARCHAR(128) | |
+| `image_url` | TEXT | |
+| `image_hash` | VARCHAR(128) | |
+| `status` | VARCHAR(20) | |
+| `view_policy` | TEXT | |
+| `last_updated_by` | VARCHAR(128) | |
+| `last_updated_at` | TIMESTAMP | |
+| `updated_at` | TIMESTAMP | |
 
 ## 4. Digital Media Strategy (IPFS)
 
@@ -142,10 +151,12 @@ Hyperledger Fabric automatically maintains a history of all key-value updates.
 2.  **Architecture**: Fabric uses **MSP (Certificates)** for Identity, not a database table.
 
 ### Implementation
-- **Identity (On-Chain)**: The ledger only sees the opaque `UserID` (Subject Common Name from x509 Cert) or MSP ID inside transactions.
-- **Profile (Off-Chain)**: The `User` model in PostgreSQL stores `Username`, `Email`, `Role`.
-- **Mapping**: The Application Backend maps the UserID to the Off-Chain database. The **Admin Identity Audit** page provides a unified view, correlating raw Fabric CA identities with these off-chain profiles.
-- **Synchronization**: A manual/automatic **Sync Worker** backfills the PostgreSQL database from the Blockchain World State to ensure high-performance administrative queries (e.g., Global Inventory) while maintaining the Ledger as the single source of truth.
+- **Identity (On-Chain)**: The ledger uses a globally unique identifier in the format **`OrgMSP::Username`**.
+  - **Generation**: The chaincode extracts the `MSPID` and `hf.EnrollmentID` attribute from the caller's certificate.
+  - **Reliability**: If `hf.EnrollmentID` is unavailable, it falls back to the certificate's **Common Name (CN)**.
+- **Profile (Off-Chain)**: The `User` model in PostgreSQL stores `Username`, `Org`, `Email`, `Role`.
+- **Mapping**: The Application Backend maps the current logged-in user to their organization via the PostgreSQL database to automate the construction of the full `OrgMSP::Username` identifier for blockchain transactions (e.g., during transfers).
+- **Synchronization**: A manual/automatic **Sync Worker** backfills the PostgreSQL database from the Blockchain World State to ensure high-performance administrative queries while maintaining the Ledger as the single source of truth.
 
 ## 8. Workflows
 

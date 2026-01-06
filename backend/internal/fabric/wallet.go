@@ -10,8 +10,8 @@ import (
 	"github.com/hyperledger/fabric-gateway/pkg/identity"
 )
 
-// SaveIdentity saves the private key and certificate to the file system
-func SaveIdentity(username string, cert []byte, key []byte, walletPath string) error {
+// SaveIdentity saves the private key, certificate, and MSP ID to the file system
+func SaveIdentity(username string, cert []byte, key []byte, walletPath string, mspid string) error {
 	userDir := filepath.Join(walletPath, username)
 	if err := os.MkdirAll(userDir, 0700); err != nil {
 		return fmt.Errorf("failed to create wallet dir: %v", err)
@@ -24,8 +24,8 @@ func SaveIdentity(username string, cert []byte, key []byte, walletPath string) e
 		return fmt.Errorf("failed to write key: %v", err)
 	}
 	
-	// Create MSP ID file for completeness
-	if err := os.WriteFile(filepath.Join(userDir, "mspid"), []byte("Org1MSP"), 0644); err != nil {
+	// Create MSP ID file
+	if err := os.WriteFile(filepath.Join(userDir, "mspid"), []byte(mspid), 0644); err != nil {
 		return fmt.Errorf("failed to write mspid: %v", err) 
 	}
 
@@ -38,10 +38,17 @@ func GetIdentity(username string, walletPath string) (*identity.X509Identity, id
 	
 	certPath := filepath.Join(userDir, "cert.pem")
 	keyPath := filepath.Join(userDir, "key.pem")
+	mspidPath := filepath.Join(userDir, "mspid")
 
 	certPEM, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read cert: %v", err)
+	}
+
+	// Read MSP ID
+	mspid := "Org1MSP" // Default for backward compatibility
+	if mspidBytes, err := os.ReadFile(mspidPath); err == nil {
+		mspid = string(mspidBytes)
 	}
 
 	// Gateway Identity
@@ -50,7 +57,7 @@ func GetIdentity(username string, walletPath string) (*identity.X509Identity, id
 		return nil, nil, fmt.Errorf("failed to parse certificate: %v", err)
 	}
 
-	id, err := identity.NewX509Identity("Org1MSP", certificate)
+	id, err := identity.NewX509Identity(mspid, certificate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create X509Identity: %v", err)
 	}

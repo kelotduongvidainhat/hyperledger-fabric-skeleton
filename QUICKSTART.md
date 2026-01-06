@@ -78,14 +78,16 @@ npm run dev
 ## 🧪 Testing the Setup
 You can verify everything is working using `curl` or the provided test scripts:
 
-**1. Register a User (via TLS-enabled CA)**:
+**1. Register a User (Multi-Org Support)**:
 ```bash
+# Register for Org1 (default) or specify "Org2MSP"
 curl -X POST "http://localhost:3000/auth/register" \
   -H "Content-Type: application/json" \
-  -d '{"username": "demo_user", "password": "password123"}'
+  -d '{"username": "demo_user", "password": "password123", "org": "Org2MSP"}'
 ```
 
 **2. Login**:
+The system will automatically find your identity across all configured CAs.
 ```bash
 curl -X POST "http://localhost:3000/auth/login" \
   -H "Content-Type: application/json" \
@@ -93,6 +95,7 @@ curl -X POST "http://localhost:3000/auth/login" \
 ```
 
 **3. Create an Asset**:
+The asset will be record with your full identity: `Org2MSP::demo_user`.
 ```bash
 # Get the token from login and use it:
 curl -X POST "http://localhost:3000/assets" \

@@ -21,8 +21,8 @@ type Asset struct {
 	ID              string `json:"ID"`
 	Name            string `json:"Name"`
 	Description     string `json:"Description"`
-	OwnerID         string `json:"OwnerID"`
-	ProposedOwnerID string `json:"ProposedOwnerID"`
+	OwnerID         string `json:"OwnerID"` // Org1MSP::username
+	ProposedOwnerID string `json:"ProposedOwnerID"` // Org1MSP::username
 	ImageURL        string `json:"ImageURL"`
 	ImageHash       string `json:"ImageHash"`
 	Status          string `json:"Status"` // ACTIVE, FROZEN, DELETED, PENDING_TRANSFER
@@ -43,12 +43,11 @@ type HistoryRecord struct {
 
 // InitLedger adds a base set of assets to the ledger
 func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
-	// Deterministic timestamp from Fabric Stub
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
 	assets := []Asset{
-		{ID: "asset1", Name: "Genesis Asset", Description: "First Asset", OwnerID: "Org1MSP", Status: "ACTIVE", View: "Public", LastUpdatedBy: "Init", LastUpdatedAt: now /* time.Now().Format(time.RFC3339) */},
+		{ID: "asset1", Name: "Genesis Asset", Description: "First Asset", OwnerID: "Org1MSP::admin", Status: "ACTIVE", View: "Public", LastUpdatedBy: "Init", LastUpdatedAt: now},
 	}
 
 	for _, asset := range assets {
@@ -66,6 +65,33 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 	return nil
 }
 
+func (s *SmartContract) getClientFullIdentifier(ctx contractapi.TransactionContextInterface) (string, error) {
+	// 1. Lấy MSPID
+	mspid, err := ctx.GetClientIdentity().GetMSPID()
+	if err != nil {
+		return "", fmt.Errorf("failed to get MSPID: %v", err)
+	}
+
+	// 2. Thử lấy EnrollmentID (Dùng cho Fabric CA)
+	username, found, _ := ctx.GetClientIdentity().GetAttributeValue("hf.EnrollmentID")
+	
+	// 3. Fallback: Nếu không thấy EnrollmentID, lấy CommonName (CN) từ Certificate Subject
+	if !found || username == "" {
+		cert, err := ctx.GetClientIdentity().GetX509Certificate()
+		if err != nil {
+			return "", fmt.Errorf("failed to get certificate: %v", err)
+		}
+		username = cert.Subject.CommonName
+	}
+
+	// 4. Kiểm tra cuối cùng nếu vẫn trống
+	if username == "" {
+		return mspid + "::unknown_identity", nil
+	}
+
+	return fmt.Sprintf("%s::%s", mspid, username), nil
+}
+
 // CreateAsset issues a new asset to the world state with given details.
 func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, name string, description string, imageURL string, imageHash string, view string) error {
 	exists, err := s.AssetExists(ctx, id)
@@ -76,14 +102,11 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 		return fmt.Errorf("the asset %s already exists", id)
 	}
 
-	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
+	clientFullID, err := s.getClientFullIdentifier(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get client MSP ID: %v", err)
+		return err
 	}
-	// In a real scenario, use GetID() for specific user, but MSPID is fine for Org-level ownnership demo
-	// clientID, _ := ctx.GetClientIdentity().GetID() // This returns the long x509 subject
 
-	// Deterministic timestamp from Fabric Stub
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
@@ -91,14 +114,14 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 		ID:              id,
 		Name:            name,
 		Description:     description,
-		OwnerID:         clientMSPID, // Assign to the Org of the caller
+		OwnerID:         clientFullID,
 		ProposedOwnerID: "",
 		ImageURL:        imageURL,
 		ImageHash:       imageHash,
-		Status:          "ACTIVE", // ACTIVE, FROZEN, DELETED, PENDING_TRANSFER
+		Status:          "ACTIVE",
 		View:            view,
-		LastUpdatedBy:   clientMSPID,
-		LastUpdatedAt:   now, // time.Now().Format(time.RFC3339),
+		LastUpdatedBy:   clientFullID,
+		LastUpdatedAt:   now,
 	}
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {
@@ -108,53 +131,48 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 	return ctx.GetStub().PutState(id, assetJSON)
 }
 
-// ReadAsset returns the asset stored in the world state with given id.
 func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, id string) (*Asset, error) {
 	assetJSON, err := ctx.GetStub().GetState(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read from world state: %v", err)
+		return nil, fmt.Errorf("failed to get asset: %v", err)
 	}
 	if assetJSON == nil {
-		return nil, fmt.Errorf("the asset %s does not exist", id)
+		return nil, fmt.Errorf("asset %s does not exist", id)
 	}
-
 	var asset Asset
 	err = json.Unmarshal(assetJSON, &asset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal asset: %v", err)
 	}
-
 	return &asset, nil
 }
 
 // ProposeTransfer initiates the Two-Factor Transfer workflow.
-// Only the current Owner can propose a transfer.
 func (s *SmartContract) ProposeTransfer(ctx contractapi.TransactionContextInterface, id string, newOwnerID string) error {
 	asset, err := s.ReadAsset(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
+	clientFullID, err := s.getClientFullIdentifier(ctx)
 	if err != nil {
 		return err
 	}
 
-	if asset.OwnerID != clientMSPID {
-		return fmt.Errorf("only the owner can propose a transfer")
+	if asset.OwnerID != clientFullID {
+		return fmt.Errorf("only the owner can propose a transfer (current owner: %s, you: %s)", asset.OwnerID, clientFullID)
 	}
 	if asset.Status != "ACTIVE" {
-		return fmt.Errorf("asset is not ACTIVE (current status: %s)", asset.Status)
+		return fmt.Errorf("asset is not ACTIVE")
 	}
 
-	// Deterministic timestamp from Fabric Stub
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
 	asset.Status = "PENDING_TRANSFER"
 	asset.ProposedOwnerID = newOwnerID
-	asset.LastUpdatedBy = clientMSPID
-	asset.LastUpdatedAt = now // time.Now().Format(time.RFC3339)
+	asset.LastUpdatedBy = clientFullID
+	asset.LastUpdatedAt = now
 
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {
@@ -165,14 +183,13 @@ func (s *SmartContract) ProposeTransfer(ctx contractapi.TransactionContextInterf
 }
 
 // AcceptTransfer finalizes the Two-Factor Transfer workflow.
-// Only the ProposedOwnerID can accept.
 func (s *SmartContract) AcceptTransfer(ctx contractapi.TransactionContextInterface, id string) error {
 	asset, err := s.ReadAsset(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
+	clientFullID, err := s.getClientFullIdentifier(ctx)
 	if err != nil {
 		return err
 	}
@@ -180,19 +197,18 @@ func (s *SmartContract) AcceptTransfer(ctx contractapi.TransactionContextInterfa
 	if asset.Status != "PENDING_TRANSFER" {
 		return fmt.Errorf("asset is not in PENDING_TRANSFER state")
 	}
-	if asset.ProposedOwnerID != clientMSPID {
-		return fmt.Errorf("you are not the proposed owner for this asset")
+	if asset.ProposedOwnerID != clientFullID {
+		return fmt.Errorf("you are not the proposed owner (expected: %s, you: %s)", asset.ProposedOwnerID, clientFullID)
 	}
 
-	// Deterministic timestamp from Fabric Stub
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
 	asset.OwnerID = asset.ProposedOwnerID
 	asset.ProposedOwnerID = ""
 	asset.Status = "ACTIVE"
-	asset.LastUpdatedBy = clientMSPID
-	asset.LastUpdatedAt = now // time.Now().Format(time.RFC3339)
+	asset.LastUpdatedBy = clientFullID
+	asset.LastUpdatedAt = now
 
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {
@@ -223,13 +239,17 @@ func (s *SmartContract) UpdateAssetStatus(ctx contractapi.TransactionContextInte
 		return err
 	}
 
-	// Deterministic timestamp from Fabric Stub
+	clientFullID, err := s.getClientFullIdentifier(ctx)
+	if err != nil {
+		return err
+	}
+
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
 	asset.Status = newStatus
-	asset.LastUpdatedBy = clientMSPID + "_ADMIN"
-	asset.LastUpdatedAt = now // time.Now().Format(time.RFC3339)
+	asset.LastUpdatedBy = clientFullID + "_ADMIN"
+	asset.LastUpdatedAt = now
 
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {

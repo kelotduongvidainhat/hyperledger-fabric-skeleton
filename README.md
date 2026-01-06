@@ -63,10 +63,11 @@ Once complete:
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common fixes
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Moving to production
 
-## 🔄 Recent Updates (User Management Refactor)
-- **New Asset Fields:** `Name`, `Category`, `Status` (Replacing Color/Size)
-- **User Management:** Create/Update users on-chain
-- **TLS Fixes:** Improved volume cleanup to solve certificate errors
+## 🔄 Recent Updates (Multi-Org & Ownership Refactor)
+- **Multi-Org Support:** Fully integrated Org1 and Org2 with separate CAs and cross-org asset transfers.
+- **Enhanced Identification:** Ownership records now use the `OrgMSP::Username` format for global uniqueness.
+- **Automated Transfer Lookup:** Backend automatically resolves usernames to full blockchain identifiers.
+- **UI Refinements:** Admin dashboard now supports multi-org identity auditing with organization badges.
 
 ## License
 MIT

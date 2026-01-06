@@ -16,14 +16,23 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"strings"
 )
 
 // CAConfig holds CA connection details
 type CAConfig struct {
-	URL        string
-	MSPID      string
-	WalletPath string
-	AdminPath  string
+	URL           string
+	MSPID         string
+	WalletPath    string
+	AdminPath     string
+	CAName        string
+	ContainerName string
+}
+
+// EnrollAdmin enrolls an admin user and saves it to the wallet
+func EnrollAdmin(cfg CAConfig, username, secret string) error {
+	log.Printf("Enrolling admin %s for %s...", username, cfg.MSPID)
+	return EnrollUser(cfg, username, secret)
 }
 
 // EnrollUser generates a key/CSR and requests enrollment from the CA
@@ -81,12 +90,11 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 
 	// 5. Parse Response
 	body, _ := io.ReadAll(resp.Body)
-	log.Printf("CA Response: %s", string(body))
 	
 	var caResp struct {
 		Success bool `json:"success"`
 		Result  struct {
-			Cert string `json:"Cert"` // Some versions use Cert
+			Cert string `json:"Cert"` 
 			Base64 string `json:"Base64"`
 		} `json:"result"`
 		Errors []interface{} `json:"errors"`
@@ -100,16 +108,13 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 		return fmt.Errorf("CA returned error: %v", caResp.Errors)
 	}
 
-	// Try Cert field first, then Base64
 	certPEMStr := caResp.Result.Cert
 	if certPEMStr == "" {
 		certPEMStr = caResp.Result.Base64
 	}
 
-	// Base64 decode the cert
 	certPEM, err := base64.StdEncoding.DecodeString(certPEMStr)
 	if err != nil || len(certPEM) == 0 {
-		// If not base64, maybe it's raw PEM?
 		certPEM = []byte(certPEMStr)
 	}
 	
@@ -122,42 +127,40 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: x509Encoded})
 
 	// 7. Save to Wallet
-	return SaveIdentity(username, certPEM, keyPEM, cfg.WalletPath)
+	return SaveIdentity(username, certPEM, keyPEM, cfg.WalletPath, cfg.MSPID)
 }
 
-// RegisterUser calls CLI to register user (requires Admin already enrolled in CLI or using bootstrap credentials)
+// RegisterUser calls CLI to register user
 func RegisterUser(cfg CAConfig, username, secret string) (string, error) {
+	// Internal TLS cert path within the container (auto-generated)
+	caCert := "/etc/hyperledger/fabric-ca-server/tls-cert.pem"
+
 	// Step 1: Enroll Admin locally (in container) to get signing certs
-	// We point to the local CA cert file created by cryptogen/ca start
-	caCert := "/etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem"
-	
-	enrollCmd := exec.Command("docker", "exec", "ca_org1", "fabric-ca-client", "enroll",
-		"-u", "https://admin:adminpw@localhost:7054",
+	// This ensures the local CLI has the necessary identities to perform registration
+	enrollCmd := exec.Command("docker", "exec", cfg.ContainerName, "fabric-ca-client", "enroll",
+		"-u", "https://admin:adminpw@localhost:"+strings.Split(cfg.URL, ":")[2],
 		"--tls.certfiles", caCert,
 	)
 	if out, err := enrollCmd.CombinedOutput(); err != nil {
-		log.Printf("Admin enroll info (might already be enrolled): %s", string(out))
+		log.Printf("Admin local enroll info (ignoring if already enrolled): %s", string(out))
 	}
 
 	// Step 2: Register the new user
-	cmd := exec.Command("docker", "exec", "ca_org1", "fabric-ca-client", "register",
-		"--caname", "ca-org1",
+	cmd := exec.Command("docker", "exec", cfg.ContainerName, "fabric-ca-client", "register",
+		"--caname", cfg.CAName,
 		"--id.name", username,
 		"--id.secret", secret,
 		"--id.type", "client",
-		"-u", "https://localhost:7054",
+		"-u", "https://localhost:"+strings.Split(cfg.URL, ":")[2],
 		"--tls.certfiles", caCert,
 	)
 	
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Check if user is already registered
-		outStr := string(output)
 		if bytes.Contains(output, []byte("is already registered")) {
-			log.Printf("User %s is already registered, continuing...", username)
 			return "user already registered", nil
 		}
-		return "", fmt.Errorf("register failed: %v, output: %s", err, outStr)
+		return "", fmt.Errorf("register failed: %v, output: %s", err, string(output))
 	}
 	
 	return string(output), nil
@@ -165,9 +168,9 @@ func RegisterUser(cfg CAConfig, username, secret string) (string, error) {
 
 // ListIdentities returns the list of all registered identities from the CA
 func ListIdentities(cfg CAConfig) (string, error) {
-	caCert := "/etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem"
-	cmd := exec.Command("docker", "exec", "ca_org1", "fabric-ca-client", "identity", "list",
-		"-u", "https://admin:adminpw@localhost:7054",
+	caCert := "/etc/hyperledger/fabric-ca-server/tls-cert.pem"
+	cmd := exec.Command("docker", "exec", cfg.ContainerName, "fabric-ca-client", "identity", "list",
+		"-u", "https://admin:adminpw@localhost:"+strings.Split(cfg.URL, ":")[2],
 		"--tls.certfiles", caCert,
 	)
 
@@ -178,3 +181,4 @@ func ListIdentities(cfg CAConfig) (string, error) {
 
 	return string(output), nil
 }
+

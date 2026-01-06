@@ -8,6 +8,7 @@ type User struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Username  string    `gorm:"uniqueIndex;not null" json:"username"`
 	Email     string    `gorm:"uniqueIndex" json:"email"`
+	Org       string    `json:"org"` // Org1MSP or Org2MSP
 	Role      string    `gorm:"default:user" json:"role"`
 	Status    string    `gorm:"default:PENDING" json:"status"` // PENDING, ACTIVE, BANNED
 	DBStatus  string    `gorm:"default:Synced" json:"db_status"`

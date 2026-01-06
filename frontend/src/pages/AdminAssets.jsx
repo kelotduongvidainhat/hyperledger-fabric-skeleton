@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Layers, Box, Globe, Database, HardDrive, Layout, Users, ShieldCheck, Clock, User, RefreshCcw, Snowflake, ShieldAlert, CheckCircle, Trash2 } from 'lucide-react';
+import Pagination from '../components/Pagination';
 
 const AdminNavLink = ({ to, label, icon, active }) => {
     return (
@@ -22,8 +23,11 @@ const AdminAssets = () => {
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [note, setNote] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 8;
 
     useEffect(() => {
+        setCurrentPage(1);
         fetchData();
     }, [source, token]);
 
@@ -41,6 +45,12 @@ const AdminAssets = () => {
             setLoading(false);
         }
     };
+
+    // Pagination Logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentAssets = assets.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(assets.length / itemsPerPage);
 
     const handleSync = async () => {
         setSyncing(true);
@@ -149,7 +159,7 @@ const AdminAssets = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-ink-800/5">
-                            {assets.map((asset) => (
+                            {currentAssets.map((asset) => (
                                 <tr key={asset.ID} className="hover:bg-parchment-50 transition-colors group text-sm">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
@@ -221,6 +231,11 @@ const AdminAssets = () => {
                             ))}
                         </tbody>
                     </table>
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
                 </div>
             )}
 
@@ -250,9 +265,9 @@ const StatusBadge = ({ status }) => {
 
     return (
         <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase border tracking-wider ${isActive ? 'bg-green-50 text-green-700 border-green-200' :
-                isPending ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                    isFrozen ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                        'bg-red-50 text-red-700 border-red-200'
+            isPending ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                isFrozen ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                    'bg-red-50 text-red-700 border-red-200'
             }`}>
             {isActive && <ShieldCheck size={10} />}
             {isPending && <Clock size={10} />}
