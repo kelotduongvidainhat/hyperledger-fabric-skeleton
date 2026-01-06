@@ -6,6 +6,8 @@ import { api } from '../api/client';
 const Register = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [email, setEmail] = useState('');
+    const [org, setOrg] = useState('Org1MSP');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
     const navigate = useNavigate();
@@ -15,15 +17,11 @@ const Register = () => {
         setError('');
 
         try {
-            await api.post('/auth/register', { username, password });
+            await api.post('/auth/register', { username, password, email, org });
             setSuccess(true);
             setTimeout(() => navigate('/login'), 2000);
         } catch (err) {
-            if (err.response && err.response.status === 501) {
-                setError("Automatic registration is currently disabled. Please contact the administrator.");
-            } else {
-                setError('Registration failed. Please try again.');
-            }
+            setError(err.response?.data?.error || 'Registration failed. Please try again.');
         }
     };
 
@@ -57,21 +55,45 @@ const Register = () => {
                             placeholder="username"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
+                            required
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-semibold mb-1">Secret</label>
+                        <label className="block text-sm font-semibold mb-1">Email</label>
+                        <input
+                            type="email"
+                            className="w-full p-2 border border-bronze/30 rounded focus:ring-2 focus:ring-wax-red focus:border-transparent bg-white/50"
+                            placeholder="email@example.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Organization</label>
+                        <select
+                            className="w-full p-2 border border-bronze/30 rounded focus:ring-2 focus:ring-wax-red focus:border-transparent bg-white/50"
+                            value={org}
+                            onChange={(e) => setOrg(e.target.value)}
+                        >
+                            <option value="Org1MSP">Organization 1 (Org1MSP)</option>
+                            <option value="Org2MSP">Organization 2 (Org2MSP)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Secret (Password)</label>
                         <input
                             type="password"
                             className="w-full p-2 border border-bronze/30 rounded focus:ring-2 focus:ring-wax-red focus:border-transparent bg-white/50"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
+                            required
                         />
                     </div>
 
                     <button
                         type="submit"
-                        className="w-full py-2 bg-ink-sepia text-white font-serif font-bold rounded hover:bg-ink-charcoal transition-colors shadow-md"
+                        className="w-full py-2 bg-wax-red text-white font-serif font-bold rounded hover:bg-red-900 transition-colors shadow-md"
                     >
                         Request Enrollment
                     </button>

@@ -14,8 +14,9 @@ export const AuthProvider = ({ children }) => {
         if (token) {
             const savedUser = localStorage.getItem('username');
             const savedRole = localStorage.getItem('role');
+            const savedOrg = localStorage.getItem('org');
             if (savedUser) {
-                setUser({ username: savedUser });
+                setUser({ username: savedUser, org: savedOrg });
                 setRole(savedRole);
                 setIsAuthenticated(true);
             }
@@ -26,15 +27,16 @@ export const AuthProvider = ({ children }) => {
     const login = async (username, password) => {
         try {
             const response = await api.post('/auth/login', { username, password });
-            const { token: newToken, username: newUsername, role: newRole } = response.data;
+            const { token: newToken, username: newUsername, role: newRole, org: newOrg } = response.data;
 
             localStorage.setItem('token', newToken);
             localStorage.setItem('username', newUsername);
             localStorage.setItem('role', newRole);
+            localStorage.setItem('org', newOrg);
 
             setToken(newToken);
             setRole(newRole);
-            setUser({ username: newUsername });
+            setUser({ username: newUsername, org: newOrg });
             setIsAuthenticated(true);
             return true;
         } catch (error) {
@@ -47,6 +49,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('token');
         localStorage.removeItem('username');
         localStorage.removeItem('role');
+        localStorage.removeItem('org');
         setToken(null);
         setRole(null);
         setUser(null);

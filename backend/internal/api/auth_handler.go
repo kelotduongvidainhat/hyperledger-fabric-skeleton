@@ -86,9 +86,19 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Token generation failed"})
 	}
 
+	// 5. Finalize Response Org
+	orgResp := user.Org
+	if req.Username == "admin" {
+		orgResp = "Org1MSP" // Default admin org
+		if finalCfg.MSPID != "" {
+			orgResp = finalCfg.MSPID
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"token":    token,
 		"username": req.Username,
+		"org":      orgResp,
 		"role":     role,
 		"status":   user.Status,
 	})

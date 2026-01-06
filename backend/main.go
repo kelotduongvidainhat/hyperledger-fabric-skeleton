@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/hyperledger/fabric-gateway/pkg/client"
+	"strings"
 )
 
 func main() {
@@ -148,6 +149,18 @@ func main() {
 
 	// Asset Routes (Protected)
 	api.Get("/", func(c *fiber.Ctx) error {
+		role := c.Locals("role").(string)
+
+		// Force database for non-admins
+		if role != "admin" {
+			var assets []models.Asset
+			if err := database.Find(&assets).Error; err != nil {
+				return c.Status(500).SendString("Database error: " + err.Error())
+			}
+			return c.JSON(assets)
+		}
+
+		// Admin gets blockchain
 		gw, contract, err := getContract(c)
 		if err != nil {
 			return c.Status(401).SendString(err.Error())
@@ -190,6 +203,16 @@ func main() {
 
 	api.Get("/:id", func(c *fiber.Ctx) error {
 		id := c.Params("id")
+		role := c.Locals("role").(string)
+
+		if role != "admin" {
+			var asset models.Asset
+			if err := database.Where("id = ?", id).First(&asset).Error; err != nil {
+				return c.Status(404).JSON(fiber.Map{"error": "Asset not found in off-chain database"})
+			}
+			return c.JSON(asset)
+		}
+
 		gw, contract, err := getContract(c)
 		if err != nil {
 			return c.Status(401).SendString(err.Error())
@@ -204,6 +227,10 @@ func main() {
 	})
 
 	api.Get("/:id/history", func(c *fiber.Ctx) error {
+		if c.Locals("role") != "admin" {
+			return c.Status(403).JSON(fiber.Map{"error": "Provenance history is restricted to Administrators."})
+		}
+
 		id := c.Params("id")
 		gw, contract, err := getContract(c)
 		if err != nil {
@@ -230,8 +257,16 @@ func main() {
 
 		// Automate Org::Username lookup
 		var targetUser models.User
-		if err := database.Where("username = ?", req.TargetUser).First(&targetUser).Error; err != nil {
-			return c.Status(404).JSON(fiber.Map{"error": fmt.Sprintf("Target user %s not found in off-chain database", req.TargetUser)})
+		searchQuery := req.TargetUser
+		
+		// If user provided Org::Username format, extract the username part for lookup
+		if strings.Contains(req.TargetUser, "::") {
+			parts := strings.Split(req.TargetUser, "::")
+			searchQuery = parts[1]
+		}
+
+		if err := database.Where("username = ?", searchQuery).First(&targetUser).Error; err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": fmt.Sprintf("Target user %s not found in off-chain database", searchQuery)})
 		}
 		
 		fullTargetID := fmt.Sprintf("%s::%s", targetUser.Org, targetUser.Username)
@@ -246,7 +281,7 @@ func main() {
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
-		return c.SendString(fmt.Sprintf("Transfer Proposed to %s", fullTargetID))
+		return c.SendString("Transfer Proposed to " + fullTargetID)
 	})
 
 	api.Post("/:id/accept", func(c *fiber.Ctx) error {

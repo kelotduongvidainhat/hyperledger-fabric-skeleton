@@ -68,7 +68,12 @@ const Login = () => {
 
                     <div className="text-center text-sm text-ink-sepia/70 mt-4">
                         <span>New to the registry? </span>
-                        <span className="font-semibold cursor-not-allowed">Contact Admin to Enroll</span>
+                        <span
+                            className="font-semibold cursor-pointer hover:underline text-wax-red"
+                            onClick={() => navigate('/register')}
+                        >
+                            Request Enrollment
+                        </span>
                     </div>
                 </form>
             </div>

@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { fetchAssets, fetchHistory, proposeTransfer, acceptTransfer } from '../api/client';
 import { ArrowLeft, ArrowRight, CheckCircle, Shield, History } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const AssetDetails = () => {
     const { id } = useParams();
+    const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const [asset, setAsset] = useState(null);
@@ -12,6 +14,7 @@ const AssetDetails = () => {
     const [loading, setLoading] = useState(true);
 
     const isFromAdmin = location.state?.from === 'admin';
+    const userFullID = user ? `${user.org}::${user.username}` : '';
 
     // Action State
     const [transferTarget, setTransferTarget] = useState('');
@@ -61,6 +64,10 @@ const AssetDetails = () => {
 
     if (loading || !asset) return <div className="p-10 text-center">Loading...</div>;
 
+    const isOwner = asset.OwnerID === userFullID;
+    const isProposedRecipient = asset.ProposedOwnerID === userFullID;
+    const isPendingTransfer = asset.Status === 'PENDING_TRANSFER';
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
@@ -83,13 +90,13 @@ const AssetDetails = () => {
                 <div className="bg-white p-6 rounded-xl border border-ink-900/10 shadow-sm">
                     <h3 className="font-serif font-bold text-lg mb-4 text-ink-900">Ownership Actions</h3>
 
-                    {asset.Status === 'ACTIVE' ? (
+                    {isOwner && !isPendingTransfer && asset.Status === 'ACTIVE' && (
                         <div className="space-y-3">
                             <label className="text-xs font-bold uppercase text-ink-900/40">Propose Transfer</label>
                             <div className="flex gap-2">
                                 <input
                                     type="text"
-                                    placeholder="Target MSP (e.g. Org2MSP)"
+                                    placeholder="Username (e.g. charlie)"
                                     className="flex-1 p-2 bg-parchment-50 border border-ink-900/20 rounded text-sm"
                                     value={transferTarget}
                                     onChange={e => setTransferTarget(e.target.value)}
@@ -97,27 +104,38 @@ const AssetDetails = () => {
                                 <button
                                     onClick={handlePropose}
                                     disabled={actionLoading || !transferTarget}
-                                    className="bg-ink-900 text-white px-4 rounded hover:bg-ink-800 disabled:opacity-50"
+                                    className="bg-ink-900 text-white px-4 rounded hover:bg-ink-800 disabled:opacity-50 transition-colors"
                                 >
                                     <ArrowRight className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
-                    ) : (
-                        <div className="bg-bronze/10 border border-bronze/20 p-4 rounded-lg">
-                            <div className="text-bronze font-bold text-sm mb-2">Transfer Pending</div>
+                    )}
+
+                    {isPendingTransfer && (
+                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                            <div className="text-amber-800 font-bold text-sm mb-2">Transfer Pending</div>
                             <div className="text-xs text-ink-900/70 mb-3">
-                                To: <strong>{asset.ProposedOwnerID}</strong>
+                                {isProposedRecipient ?
+                                    "You have been proposed as the new owner." :
+                                    `Proposed Recipient: ${asset.ProposedOwnerID}`
+                                }
                             </div>
-                            {/* Simulated "Switch User" check would go here. For demo we allow clicking accept. */}
-                            <button
-                                onClick={handleAccept}
-                                disabled={actionLoading}
-                                className="w-full flex justify-center items-center gap-2 bg-bronze text-white py-2 rounded hover:bg-bronze/90 shadow-sm font-bold text-sm"
-                            >
-                                <CheckCircle className="w-4 h-4" /> Accept Transfer
-                            </button>
+
+                            {isProposedRecipient && (
+                                <button
+                                    onClick={handleAccept}
+                                    disabled={actionLoading}
+                                    className="w-full flex justify-center items-center gap-2 bg-wax-red text-white py-2 rounded hover:bg-red-900 shadow-sm font-bold text-sm transition-colors"
+                                >
+                                    <CheckCircle className="w-4 h-4" /> Accept Transfer
+                                </button>
+                            )}
                         </div>
+                    )}
+
+                    {!isOwner && !isProposedRecipient && !isPendingTransfer && (
+                        <p className="text-sm text-ink-900/40 italic">You do not have administrative rights over this artifact.</p>
                     )}
                 </div>
             </div>
