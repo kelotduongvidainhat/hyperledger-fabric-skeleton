@@ -67,3 +67,13 @@ Scripts running inside the `cli` container cannot access files created on the ho
 5.  **Restart** Chaincode Container.
 6.  **Approve & Commit** Definition.
 7.  **Invoke** `InitLedger`.
+### 4. `no combination of peers satisfy endorsement policy` (Discovery Failure)
+
+**Cause:**
+You are using a High-Level SDK (like Fabric Gateway) which uses Service Discovery. If **Anchor Peers** are not configured, Org1 peers cannot find Org2 peers, causing a "Majority" policy check to fail.
+
+**Solution:**
+Run the anchor peer update script on the host:
+```bash
+docker exec cli ./scripts/update-anchor-peers.sh
+```

@@ -4,6 +4,7 @@ import (
 	"backend/internal/api"
 	"backend/internal/auth"
 	"backend/internal/fabric"
+	"backend/internal/db"
 	"fmt"
 	"log"
 	"os"
@@ -14,7 +15,13 @@ import (
 )
 
 func main() {
-	// CONFIGURATION
+	// 1. Setup DB
+	database, err := db.InitDB("localhost", "5432", "admin", "adminpw", "ownership_registry")
+	if err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+
+	// 2. CONFIGURATION
 	cryptoPath := "../network/crypto-config/peerOrganizations/org1.example.com"
 	certPath := fmt.Sprintf("%s/users/Admin@org1.example.com/msp/signcerts/Admin@org1.example.com-cert.pem", cryptoPath)
 	keyPath := fmt.Sprintf("%s/users/Admin@org1.example.com/msp/keystore/priv_sk", cryptoPath)
@@ -55,12 +62,19 @@ func main() {
 	// CA URL is usually localhost:7054 for Org1 CA
 	// TLS is disabled.
 	caCfg := fabric.CAConfig{
-		URL:        "http://localhost:7054",
+		URL:        "https://localhost:7054",
 		MSPID:      "Org1MSP",
 		WalletPath: walletPath,
 		AdminPath:  cryptoPath + "/users/Admin@org1.example.com/msp",
 	}
 	authHandler := &api.AuthHandler{CAConfig: caCfg}
+	adminHandler := &api.AdminHandler{
+		CAConfig:   caCfg,
+		WalletPath: walletPath,
+		Config:     cfg,
+		Conn:       conn,
+		DB:         database,
+	}
 
 	// SETUP SERVER
 	app := fiber.New()
@@ -72,6 +86,19 @@ func main() {
 	})
 	app.Post("/auth/login", authHandler.Login)
 	app.Post("/auth/register", authHandler.Register)
+
+	// ADMIN ROUTES (Protected + Role Check)
+	adminGroup := app.Group("/admin", auth.Middleware())
+	adminGroup.Use(func(c *fiber.Ctx) error {
+		if c.Locals("role") != "admin" {
+			return c.Status(403).JSON(fiber.Map{"error": "Admin access required"})
+		}
+		return c.Next()
+	})
+	adminGroup.Get("/stats", adminHandler.GetStats)
+	adminGroup.Get("/users", adminHandler.GetUsers)
+	adminGroup.Get("/assets", adminHandler.GetAdminAssets)
+	adminGroup.Post("/sync", adminHandler.Sync)
 
 	// PROTECTED ROUTES
 	api := app.Group("/assets", auth.Middleware())

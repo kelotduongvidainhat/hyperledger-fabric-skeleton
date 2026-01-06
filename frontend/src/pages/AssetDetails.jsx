@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { fetchAssets, fetchHistory, proposeTransfer, acceptTransfer } from '../api/client';
 import { ArrowLeft, ArrowRight, CheckCircle, Shield, History } from 'lucide-react';
 
 const AssetDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [asset, setAsset] = useState(null);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const isFromAdmin = location.state?.from === 'admin';
 
     // Action State
     const [transferTarget, setTransferTarget] = useState('');
@@ -63,9 +66,12 @@ const AssetDetails = () => {
 
             {/* Left Column: Image & Actions */}
             <div className="lg:col-span-1 space-y-6">
-                <button onClick={() => navigate('/')} className="flex items-center gap-2 text-ink-900/50 hover:text-ink-900 mb-2">
-                    <ArrowLeft className="w-4 h-4" /> Back to Registry
-                </button>
+                <Link
+                    to={isFromAdmin ? "/admin/assets" : "/"}
+                    className="flex items-center gap-2 text-ink-900/50 hover:text-ink-900 mb-2 no-underline"
+                >
+                    <ArrowLeft className="w-4 h-4" /> {isFromAdmin ? "Back to Assets" : "Back to Registry"}
+                </Link>
 
                 <div className="bg-white p-2 border border-ink-900/10 rounded-xl shadow-sm">
                     <div className="aspect-square bg-parchment-200 rounded-lg overflow-hidden">

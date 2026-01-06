@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -61,7 +62,11 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 	req.SetBasicAuth(username, secret)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 	
 	resp, err := client.Do(req)
 	if err != nil {
@@ -123,11 +128,15 @@ func EnrollUser(cfg CAConfig, username, secret string) error {
 // RegisterUser calls CLI to register user (requires Admin already enrolled in CLI or using bootstrap credentials)
 func RegisterUser(cfg CAConfig, username, secret string) (string, error) {
 	// Step 1: Enroll Admin locally (in container) to get signing certs
+	// We point to the local CA cert file created by cryptogen/ca start
+	caCert := "/etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem"
+	
 	enrollCmd := exec.Command("docker", "exec", "ca_org1", "fabric-ca-client", "enroll",
-		"-u", "http://admin:adminpw@localhost:7054",
+		"-u", "https://admin:adminpw@localhost:7054",
+		"--tls.certfiles", caCert,
 	)
 	if out, err := enrollCmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("admin enroll failed: %v, output: %s", err, string(out))
+		log.Printf("Admin enroll info (might already be enrolled): %s", string(out))
 	}
 
 	// Step 2: Register the new user
@@ -136,13 +145,36 @@ func RegisterUser(cfg CAConfig, username, secret string) (string, error) {
 		"--id.name", username,
 		"--id.secret", secret,
 		"--id.type", "client",
-		"-u", "http://localhost:7054",
+		"-u", "https://localhost:7054",
+		"--tls.certfiles", caCert,
 	)
 	
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("register failed: %v, output: %s", err, string(output))
+		// Check if user is already registered
+		outStr := string(output)
+		if bytes.Contains(output, []byte("is already registered")) {
+			log.Printf("User %s is already registered, continuing...", username)
+			return "user already registered", nil
+		}
+		return "", fmt.Errorf("register failed: %v, output: %s", err, outStr)
 	}
 	
+	return string(output), nil
+}
+
+// ListIdentities returns the list of all registered identities from the CA
+func ListIdentities(cfg CAConfig) (string, error) {
+	caCert := "/etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem"
+	cmd := exec.Command("docker", "exec", "ca_org1", "fabric-ca-client", "identity", "list",
+		"-u", "https://admin:adminpw@localhost:7054",
+		"--tls.certfiles", caCert,
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to list identities: %v, output: %s", err, string(output))
+	}
+
 	return string(output), nil
 }

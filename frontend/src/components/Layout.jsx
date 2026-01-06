@@ -1,7 +1,10 @@
-import React from 'react';
 import { Scroll, Feather } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const Layout = ({ children }) => {
+    const { user, role, logout } = useAuth();
+
     return (
         <div className="min-h-screen bg-parchment-100 font-sans text-ink-900 selection:bg-bronze selection:text-white">
             {/* Header / Navbar */}
@@ -9,21 +12,37 @@ const Layout = ({ children }) => {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center h-20">
                         {/* Logo */}
-                        <div className="flex items-center gap-3">
+                        <Link to="/" className="flex items-center gap-3">
                             <div className="bg-ink-800 p-2 rounded-full">
                                 <Scroll className="w-6 h-6 text-parchment-100" />
                             </div>
                             <h1 className="text-2xl font-serif font-bold tracking-tight text-ink-800">
                                 Ownership Registry
                             </h1>
-                        </div>
+                        </Link>
 
-                        {/* Nav (Simple) */}
-                        <nav className="flex gap-6 items-center">
-                            <span className="flex items-center gap-2 px-4 py-2 bg-parchment-50 rounded-lg border border-ink-900/10 shadow-sm">
-                                <Feather className="w-4 h-4 text-bronze" />
-                                <span className="text-sm font-medium">Logged in via Gateway</span>
-                            </span>
+                        {/* Nav */}
+                        <nav className="flex gap-8 items-center">
+                            <div className="flex gap-4 text-sm font-bold uppercase tracking-widest text-ink-800/70">
+                                <Link to="/" className="hover:text-bronze transition-colors">Registry</Link>
+                                <Link to="/create" className="hover:text-bronze transition-colors">Add Asset</Link>
+                                {role === 'admin' && (
+                                    <Link to="/admin" className="text-wax-red hover:text-red-700 transition-colors">Admin Console</Link>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <span className="flex items-center gap-2 px-4 py-2 bg-parchment-50 rounded-lg border border-ink-900/10 shadow-sm">
+                                    <Feather className="w-4 h-4 text-bronze" />
+                                    <span className="text-sm font-medium">{user?.username || 'Guest'}</span>
+                                </span>
+                                <button
+                                    onClick={logout}
+                                    className="text-xs uppercase font-bold text-ink-800/50 hover:text-wax-red transition-colors"
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
                         </nav>
                     </div>
                 </div>

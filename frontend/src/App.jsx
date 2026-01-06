@@ -7,6 +7,9 @@ import CreateAsset from './pages/CreateAsset';
 import AssetDetails from './pages/AssetDetails';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminUsers from './pages/AdminUsers';
+import AdminAssets from './pages/AdminAssets';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -18,6 +21,18 @@ const ProtectedRoute = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
+
+const AdminRoute = ({ children }) => {
+  const { role, loading, isAuthenticated } = useAuth();
+
+  if (loading) return <div className="p-10 text-center">Loading board...</div>;
+
+  if (!isAuthenticated || role !== 'admin') {
+    return <Navigate to="/" replace />;
   }
 
   return children;
@@ -53,6 +68,30 @@ function App() {
                 <AssetDetails />
               </Layout>
             </ProtectedRoute>
+          } />
+
+          <Route path="/admin" element={
+            <AdminRoute>
+              <Layout>
+                <AdminDashboard />
+              </Layout>
+            </AdminRoute>
+          } />
+
+          <Route path="/admin/users" element={
+            <AdminRoute>
+              <Layout>
+                <AdminUsers />
+              </Layout>
+            </AdminRoute>
+          } />
+
+          <Route path="/admin/assets" element={
+            <AdminRoute>
+              <Layout>
+                <AdminAssets />
+              </Layout>
+            </AdminRoute>
           } />
         </Routes>
       </BrowserRouter>

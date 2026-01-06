@@ -142,9 +142,10 @@ Hyperledger Fabric automatically maintains a history of all key-value updates.
 2.  **Architecture**: Fabric uses **MSP (Certificates)** for Identity, not a database table.
 
 ### Implementation
-- **Identity (On-Chain)**: The ledger only sees the opaque `UserID` (Subject Common Name from x509 Cert) inside transactions.
-- **Profile (Off-Chain)**: The `users` table in PostgreSQL stores `Name`, `Email`, `Role`.
-- **Mapping**: The Application Backend maps the `Ctx.GetCreator()` UserID to the Off-Chain database to display user names.
+- **Identity (On-Chain)**: The ledger only sees the opaque `UserID` (Subject Common Name from x509 Cert) or MSP ID inside transactions.
+- **Profile (Off-Chain)**: The `User` model in PostgreSQL stores `Username`, `Email`, `Role`.
+- **Mapping**: The Application Backend maps the UserID to the Off-Chain database. The **Admin Identity Audit** page provides a unified view, correlating raw Fabric CA identities with these off-chain profiles.
+- **Synchronization**: A manual/automatic **Sync Worker** backfills the PostgreSQL database from the Blockchain World State to ensure high-performance administrative queries (e.g., Global Inventory) while maintaining the Ledger as the single source of truth.
 
 ## 8. Workflows
 

@@ -12,10 +12,10 @@ A comprehensive starter template for building production-grade Hyperledger Fabri
   - **Database:** PostgreSQL for off-chain query optimization
 
 - **Advanced Functionality:**
-  - **Asset Lifecycle:** Create, Read, Update, Delete, Transfer
-  - **Security:** Asset Locking/Unlocking (Freezing)
-  - **User Identity:** On-chain User profiles and role management
-  - **Data Sync:** Real-time event listener + Backfill scripts for 100% data consistency
+  - **Asset Lifecycle:** Create, Read, Update, Delete, Transfer with full history auditing.
+  - **Admin Dashboard:** Integrated oversight of all network identities and assets.
+  - **Data Sync:** Manual and automated "Dual Source" synchronization (Ledger ↔ PostgreSQL).
+  - **Security:** RBAC (Role Based Access Control) for standard users and administrators.
 
 - **Developer Experience:**
   - **One-Click Setup:** `./scripts/fresh-start.sh` handles EVERYTHING
@@ -30,17 +30,20 @@ A comprehensive starter template for building production-grade Hyperledger Fabri
 - Node.js & NPM
 - JQ & Curl
 
-### Run the Project
-The `fresh-start.sh` script is the magic button. It rebuilds the network, deploys chaincode, and starts the app.
+### Quick Start Guide
+For a step-by-step walkthrough of setting up the environment, deploying chaincode, and starting the API, see:
+👉 **[QUICKSTART.md](QUICKSTART.md)**
 
+### Basic Run
+The `fresh-start.sh` script bootstraps the core network infrastructure.
 ```bash
-./scripts/fresh-start.sh
+sudo ./scripts/fresh-start.sh
 ```
 
 Once complete:
 - **Frontend:** [http://localhost:5173](http://localhost:5173)
-- **Backend API:** [http://localhost:8080/health](http://localhost:8080/health)
-- **Database:** Connect via `localhost:5432`
+- **Backend API:** [http://localhost:3000](http://localhost:3000)
+- **Database:** PostgreSQL on `localhost:5432`
 
 ## 📂 Project Structure
 

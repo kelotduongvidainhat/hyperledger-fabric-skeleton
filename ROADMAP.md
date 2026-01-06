@@ -10,26 +10,36 @@ This roadmap outlines the future development and milestones for the Ownership Re
 
 ---
 
-## Phase 2: Role-Based Access & UI (Short Term)
+## Phase 2: Decentralization & Security (Completed ✅)
+- [x] **Admin Data Sync**: 
+    - [x] Implement off-chain database (PostgreSQL) storage for asset caching.
+    - [x] Create synchronization logic/endpoint for Ledger-to-Database migration.
+    - [x] Support "Dual Source" (Blockchain vs Database) viewing in Admin UI.
+- [x] **Admin Panel**: 
+    - [x] Dedicated route `/admin` for system oversight.
+    - [x] Identity Audit page (CA identities + Mock DB profiles).
+    - [x] Global Inventory page with Source switcher and Manual Sync.
+- [x] **UI/UX Enhancements**:
+    - [x] Dynamic navigation ("Back to Assets" vs "Back to Registry").
+    - [x] Loading/Syncing indicators and visual status badges.
+
+## Phase 3: Advanced Features (Short Term)
+- [ ] **IPFS Integration**: 
+    - Transition to decentralized IPFS for robust, censorship-resistant storage.
+    - Backend: Implement file upload endpoint to push images to IPFS.
+    - Store the IPFS Content ID (CID) on-chain.
 - [ ] **Role Management**:
-    - **Admin**: Full dashboard stats, User Management (Approvals/Ban), System Configuration.
+    - **Admin**: User Management (Approvals/Ban), System Configuration.
     - **Auditor**: Read-only access to full history logs, compliance reporting view.
     - **User**: Standard Asset Management (Create, Transfer, View Own Assets).
-- [ ] **Real Authentication**: Replace dummy "Logged in via Gateway" with real JWT-based authentication.
-    - Integrate `fabric-ca-client` to register/enroll users via API.
-    - Implement Login endpoint returning JWT with embedded roles.
-- [ ] **Object Storage (MinIO)**:
-    - Deploy MinIO (S3-compatible) container.
-    - Backend: Implement file upload endpoint (`POST /upload`) to push images to MinIO.
-- [ ] **UI Enhancements**:
-    - **Admin Panel**: Dedicated route `/admin` for user oversight.
-    - **Auditor View**: Advanced filtering and report generation.
-    - **User Wallet**: UI for managing personal keys/identities.
+- [ ] **Advanced Authentication**:
+    - Implement persistent sessions and secure token refresh.
+- [ ] **Auditor View**: Advanced filtering and report generation.
 
 ## Phase 3: Advanced Features (Medium Term)
-- [ ] **IPFS Integration**:
-    - Transition from centralized MinIO to decentralized IPFS for robust, censorship-resistant storage.
-    - Store the IPFS Content ID (CID) on-chain.
+- [ ] **Object Storage (MinIO)**:
+    - Secondary storage for larger documents or metadata that doesn't fit on IPFS.
+    - S3-compatible integration for legacy support.
 - [ ] **Private Data Collections (PDC)**:
     - Update Chaincode to support private pricing or metadata that is shared only between Buyer and Seller, not the whole network.
 - [ ] **Complex Transfer Logic**:
@@ -49,3 +59,6 @@ This roadmap outlines the future development and milestones for the Ownership Re
 ## Phase 5: Expansion
 - [ ] **Multi-Channel Support**: create separate channels for different asset classes.
 - [ ] **Cross-Chain Interoperability**: Explore Hyperledger Cactus/Centi for bridging with Ethereum.
+
+## License
+MIT

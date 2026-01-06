@@ -230,4 +230,28 @@ Update Anchor Peers for both organizations:
 
 ---
 
-**Last Updated**: 2026-01-05
+### 2.6 Registration Errors (TLS & Duplicate Users)
+
+**Error Log (TLS Enabled):**
+```
+failed to call CA: Post "https://localhost:7054/api/v1/enroll": x509: certificate signed by unknown authority
+```
+**Cause:**
+The Backend is trying to connect to a TLS-enabled CA but the CA's self-signed certificate is not trusted by the host's CA store.
+
+**Solution:**
+In development, use `InsecureSkipVerify: true` in the backend's `http.Client`. In production, load the CA's root certificate into the `CertPool`.
+
+**Error Log (Duplicate User):**
+```
+Error: registration failed: Identity 'user1' is already registered
+```
+**Cause:**
+Attempting to register a username that already exists in the CA database.
+
+**Solution:**
+Implement a check in the backend (`RegisterUser`) to catch the specific string `"is already registered"` in the command output and return a successful status (201/200) to the user, as the identity is usable.
+
+---
+
+**Last Updated**: 2026-01-06

@@ -39,14 +39,14 @@ cd /opt/gopath/src/github.com/hyperledger/fabric/peer
 # 2. Install Chaincode (Org1)
 echo "💿 Installing chaincode on Org1..."
 setOrg1
-peer lifecycle chaincode install basic.tar.gz
+peer lifecycle chaincode install basic.tar.gz || true
 PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep ${CC_NAME}_${CC_VERSION} | awk -F "[, ]" '{print $3}')
 echo "   Package ID: $PACKAGE_ID"
 
 # 3. Install Chaincode (Org2)
 echo "💿 Installing chaincode on Org2..."
 setOrg2
-peer lifecycle chaincode install basic.tar.gz
+peer lifecycle chaincode install basic.tar.gz || true
 
 # 4. Start Chaincode Container (Manual Step emulation)
 # In CaaS, the chaincode ID must match the Package ID.

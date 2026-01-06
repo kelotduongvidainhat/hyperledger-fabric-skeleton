@@ -6,17 +6,17 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(localStorage.getItem('token'));
+    const [role, setRole] = useState(localStorage.getItem('role'));
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check if token exists on mount
         if (token) {
-            // Ideally we validate the token with backend, but for MVP we assume validity if present
-            // decoding logic could be added here
             const savedUser = localStorage.getItem('username');
+            const savedRole = localStorage.getItem('role');
             if (savedUser) {
                 setUser({ username: savedUser });
+                setRole(savedRole);
                 setIsAuthenticated(true);
             }
         }
@@ -26,12 +26,14 @@ export const AuthProvider = ({ children }) => {
     const login = async (username, password) => {
         try {
             const response = await api.post('/auth/login', { username, password });
-            const { token: newToken, username: newUsername } = response.data;
+            const { token: newToken, username: newUsername, role: newRole } = response.data;
 
             localStorage.setItem('token', newToken);
             localStorage.setItem('username', newUsername);
+            localStorage.setItem('role', newRole);
 
             setToken(newToken);
+            setRole(newRole);
             setUser({ username: newUsername });
             setIsAuthenticated(true);
             return true;
@@ -44,13 +46,15 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('username');
+        localStorage.removeItem('role');
         setToken(null);
+        setRole(null);
         setUser(null);
         setIsAuthenticated(false);
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, token, role, isAuthenticated, login, logout, loading }}>
             {children}
         </AuthContext.Provider>
     );

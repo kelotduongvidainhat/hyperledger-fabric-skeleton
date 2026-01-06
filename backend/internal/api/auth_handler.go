@@ -34,8 +34,14 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"error": "Authentication failed"})
 	}
 
-	// 2. Generate JWT
-	token, err := auth.GenerateToken(req.Username, "user") // Default role
+	// 2. Determine Role
+	role := "user"
+	if req.Username == "admin" {
+		role = "admin"
+	}
+
+	// 3. Generate JWT
+	token, err := auth.GenerateToken(req.Username, role)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Token generation failed"})
 	}
@@ -43,6 +49,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"token":    token,
 		"username": req.Username,
+		"role":     role,
 	})
 }
 
