@@ -67,7 +67,10 @@ func main() {
 		WalletPath: walletPath,
 		AdminPath:  cryptoPath + "/users/Admin@org1.example.com/msp",
 	}
-	authHandler := &api.AuthHandler{CAConfig: caCfg}
+	authHandler := &api.AuthHandler{
+		CAConfig: caCfg,
+		DB:       database,
+	}
 	adminHandler := &api.AdminHandler{
 		CAConfig:   caCfg,
 		WalletPath: walletPath,
@@ -97,7 +100,9 @@ func main() {
 	})
 	adminGroup.Get("/stats", adminHandler.GetStats)
 	adminGroup.Get("/users", adminHandler.GetUsers)
+	adminGroup.Post("/users/:username/status", adminHandler.UpdateUserStatus)
 	adminGroup.Get("/assets", adminHandler.GetAdminAssets)
+	adminGroup.Post("/assets/:id/status", adminHandler.UpdateAssetStatus)
 	adminGroup.Post("/sync", adminHandler.Sync)
 
 	// PROTECTED ROUTES

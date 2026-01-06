@@ -30,8 +30,8 @@ erDiagram
         string ImageHash "Integrity Check (SHA256/IPFS)"
         enum Status "ACTIVE | FROZEN | DELETED | PENDING_TRANSFER"
         string View "Public | [UserID, ...]"
-        string LastUpdatedBy "UserID of modifier"
-        timestamp LastUpdatedAt "Time of modification"
+        string LastUpdatedBy "UserID of modifier (or _ADMIN)"
+        timestamp LastUpdatedAt "Time of modification (Deterministic)"
     }
 ```
 
@@ -168,7 +168,13 @@ Transactions require mutual agreement. The Owner **proposes** a transfer, and th
 5.  **Action**: Clear `ProposedOwnerID`.
 6.  **Log**: Ownership change finalized.
 
-### B. Freezing (Governance)
-1.  **Check**: Is Requester == Admin?
-2.  **Action**: Set `Status` = `FROZEN`.
-3.  **Result**: Transfers are blocked until Unfrozen.
+### B. Governance Override (Freeze/Revoke)
+1.  **Check**: Does Requester have `admin` attribute? (Or is an Organization Admin?)
+2.  **Action**: Admin calls `UpdateAssetStatus(ID, Status)`.
+3.  **Update**: 
+    - `Status` -> `FROZEN` / `DELETED` / `ACTIVE`.
+    - `LastUpdatedBy` -> `RequesterID + "_ADMIN"`.
+4.  **Result**: 
+    - `FROZEN`: Transfers blocked.
+    - `DELETED`: Asset effectively burned.
+    - `ACTIVE`: Asset restored to normal circulation.

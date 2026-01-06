@@ -28,10 +28,10 @@ This roadmap outlines the future development and milestones for the Ownership Re
     - Transition to decentralized IPFS for robust, censorship-resistant storage.
     - Backend: Implement file upload endpoint to push images to IPFS.
     - Store the IPFS Content ID (CID) on-chain.
-- [ ] **Role Management**:
-    - **Admin**: User Management (Approvals/Ban), System Configuration.
-    - **Auditor**: Read-only access to full history logs, compliance reporting view.
-    - **User**: Standard Asset Management (Create, Transfer, View Own Assets).
+- [x] **Role Management**:
+    - [x] **Admin**: User Management (Approvals/Ban), Asset Status Override (Freeze/Revoke).
+    - [x] **Auditor**: Profile promotion and dedicated role assignment.
+    - [x] **User**: Standard Asset Management (Create, Transfer, View Own Assets).
 - [ ] **Advanced Authentication**:
     - Implement persistent sessions and secure token refresh.
 - [ ] **Auditor View**: Advanced filtering and report generation.

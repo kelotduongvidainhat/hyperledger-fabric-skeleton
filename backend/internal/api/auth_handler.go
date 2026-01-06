@@ -3,14 +3,17 @@ package api
 import (
 	"backend/internal/auth"
 	"backend/internal/fabric"
+	"backend/internal/models"
 	"log"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 )
 
 // AuthHandler holds dependencies
 type AuthHandler struct {
 	CAConfig fabric.CAConfig
+	DB       *gorm.DB
 }
 
 // Login handles user authentication (Enrollment + JWT)
@@ -34,13 +37,33 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"error": "Authentication failed"})
 	}
 
-	// 2. Determine Role
+	// 2. Check DB Status
+	var user models.User
+	err = h.DB.Where("username = ?", req.Username).First(&user).Error
+	if err == nil {
+		if user.Status == "BANNED" {
+			return c.Status(403).JSON(fiber.Map{"error": "Your account has been banned. Contact Admin."})
+		}
+	} else if req.Username != "admin" {
+		// If user exists in CA but not in DB, create it (backfill)
+		user = models.User{
+			Username: req.Username,
+			Role:     "user",
+			Status:   "ACTIVE", // Auto-active for previously registered users
+			Email:    req.Username + "@example.org",
+		}
+		h.DB.Create(&user)
+	}
+
+	// 3. Determine Role
 	role := "user"
 	if req.Username == "admin" {
 		role = "admin"
+	} else if err == nil {
+		role = user.Role
 	}
 
-	// 3. Generate JWT
+	// 4. Generate JWT
 	token, err := auth.GenerateToken(req.Username, role)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Token generation failed"})
@@ -50,6 +73,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		"token":    token,
 		"username": req.Username,
 		"role":     role,
+		"status":   user.Status,
 	})
 }
 
@@ -58,6 +82,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	type RegisterReq struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 
 	var req RegisterReq
@@ -72,8 +97,20 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Registration failed: %v", err)})
 	}
 
+	// Create user in Off-Chain DB
+	dbUser := models.User{
+		Username: req.Username,
+		Email:    req.Email,
+		Role:     "user",
+		Status:   "PENDING", // Wait for Admin Approval
+	}
+	if err := h.DB.Create(&dbUser).Error; err != nil {
+		log.Printf("Failed to create DB profile for %s: %v", req.Username, err)
+		// Don't fail the whole request because CA reg succeeded
+	}
+
 	return c.Status(201).JSON(fiber.Map{
-		"message": "User registered successfully",
+		"message": "User registered successfully. Status: PENDING (Awaiting Admin Approval)",
 		"details": resp,
 	})
 }

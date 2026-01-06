@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Layers, Box, Globe, Database, HardDrive, Layout, Users, ShieldCheck, Clock, User, RefreshCcw } from 'lucide-react';
+import { Layers, Box, Globe, Database, HardDrive, Layout, Users, ShieldCheck, Clock, User, RefreshCcw, Snowflake, ShieldAlert, CheckCircle, Trash2 } from 'lucide-react';
 
 const AdminNavLink = ({ to, label, icon, active }) => {
     return (
@@ -53,6 +53,22 @@ const AdminAssets = () => {
         } catch (err) {
             console.error("Sync failed", err);
             alert("Synchronization failed: " + (err.response?.data?.error || err.message));
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    const handleUpdateStatus = async (id, status) => {
+        setSyncing(true);
+        try {
+            await api.post(`/admin/assets/${id}/status`, { status }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert(`Asset ${id} status updated to ${status}`);
+            fetchData();
+        } catch (err) {
+            console.error("Management action failed", err);
+            alert("Action failed: " + (err.response?.data?.error || err.message));
         } finally {
             setSyncing(false);
         }
@@ -127,9 +143,9 @@ const AdminAssets = () => {
                             <tr>
                                 <th className="px-6 py-4">Asset ID</th>
                                 <th className="px-6 py-4">Designation</th>
-                                <th className="px-6 py-4">Current Custodian</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4 text-right">Details</th>
+                                <th className="px-6 py-4 text-center">Custodian</th>
+                                <th className="px-6 py-4 text-center">Status</th>
+                                <th className="px-6 py-4 text-right">Administrative Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-ink-800/5">
@@ -151,23 +167,55 @@ const AdminAssets = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-2 text-xs">
+                                    <td className="px-6 py-4 text-center">
+                                        <div className="flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-tight text-ink-800/60">
                                             <User size={12} className="text-bronze" />
-                                            <span className="font-medium">{asset.OwnerID}</span>
+                                            {asset.OwnerID}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-4 text-center">
                                         <StatusBadge status={asset.Status} />
                                     </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <Link
-                                            to={`/assets/${asset.ID}`}
-                                            state={{ from: 'admin' }}
-                                            className="text-[10px] uppercase font-bold text-bronze hover:text-ink-800 transition-colors border-b border-bronze/20"
-                                        >
-                                            View Audit
-                                        </Link>
+                                    <td className="px-6 py-4">
+                                        <div className="flex justify-end items-center gap-3">
+                                            {asset.Status !== 'FROZEN' && asset.Status !== 'DELETED' && (
+                                                <button
+                                                    onClick={() => handleUpdateStatus(asset.ID, 'FROZEN')}
+                                                    disabled={syncing}
+                                                    title="Freeze Asset"
+                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100"
+                                                >
+                                                    <Snowflake size={14} />
+                                                </button>
+                                            )}
+                                            {asset.Status === 'FROZEN' && (
+                                                <button
+                                                    onClick={() => handleUpdateStatus(asset.ID, 'ACTIVE')}
+                                                    disabled={syncing}
+                                                    title="Unfreeze Asset"
+                                                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors border border-green-100"
+                                                >
+                                                    <CheckCircle size={14} />
+                                                </button>
+                                            )}
+                                            {asset.Status !== 'DELETED' && (
+                                                <button
+                                                    onClick={() => handleUpdateStatus(asset.ID, 'DELETED')}
+                                                    disabled={syncing}
+                                                    title="Revoke/Delete Asset"
+                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-100"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                            <Link
+                                                to={`/assets/${asset.ID}`}
+                                                state={{ from: 'admin' }}
+                                                className="px-3 py-1.5 bg-ink-800 text-parchment-100 rounded text-[9px] font-bold uppercase tracking-widest hover:bg-black transition-all shadow-sm"
+                                            >
+                                                Audit
+                                            </Link>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -177,15 +225,15 @@ const AdminAssets = () => {
             )}
 
             {/* Source Info Card */}
-            <div className={`p-6 bg-parchment-200 rounded-lg border-l-4 transition-colors ${source === 'blockchain' ? 'border-bronze' : 'border-ink-800'}`}>
+            <div className={`p-6 bg-parchment-200 rounded-lg border-l-4 transition-colors ${source === 'blockchain' ? 'border-bronze' : 'border-ink-800'} shadow-sm`}>
                 <div className="flex gap-4 items-center">
-                    <Layers className={source === 'blockchain' ? 'text-bronze' : 'text-ink-800'} size={24} />
+                    <ShieldAlert className={source === 'blockchain' ? 'text-bronze' : 'text-ink-800'} size={24} />
                     <div className="space-y-1">
-                        <h5 className="text-sm font-bold uppercase tracking-widest text-ink-800">Source: {source}</h5>
+                        <h5 className="text-sm font-bold uppercase tracking-widest text-ink-800">Governance Console: Oversight Active</h5>
                         <p className="text-[11px] text-ink-800/60 leading-normal italic font-serif">
                             {source === 'blockchain'
-                                ? "Displaying raw, immutable data fetched directly from the Hyperledger Fabric ledger (World State). Each entry is verified by the network endorsement policy."
-                                : "Displaying optimized, off-chain data from PostgreSQL. Enhanced for rich querying and administrative performance metrics."}
+                                ? "Interacting directly with Hyperledger Fabric World State. Administrative actions (Freeze/Revoke) generate a permanent, immutable record in the ledger history."
+                                : "Viewing optimized off-chain cache. Note: Administrative status changes will be written both to the Blockchain and the Database for near-real-time consistency."}
                         </p>
                     </div>
                 </div>
@@ -197,14 +245,19 @@ const AdminAssets = () => {
 const StatusBadge = ({ status }) => {
     const isActive = status === 'ACTIVE';
     const isPending = status === 'PENDING_TRANSFER';
+    const isFrozen = status === 'FROZEN';
+    const isDeleted = status === 'DELETED';
 
     return (
         <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase border tracking-wider ${isActive ? 'bg-green-50 text-green-700 border-green-200' :
                 isPending ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                    'bg-parchment-200 text-ink-800 border-ink-800/10'
+                    isFrozen ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        'bg-red-50 text-red-700 border-red-200'
             }`}>
             {isActive && <ShieldCheck size={10} />}
             {isPending && <Clock size={10} />}
+            {isFrozen && <Snowflake size={10} />}
+            {isDeleted && <Trash2 size={10} />}
             {status}
         </span>
     );

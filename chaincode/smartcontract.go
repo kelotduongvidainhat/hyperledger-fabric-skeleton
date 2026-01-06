@@ -43,8 +43,12 @@ type HistoryRecord struct {
 
 // InitLedger adds a base set of assets to the ledger
 func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
+	// Deterministic timestamp from Fabric Stub
+	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
+	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
+
 	assets := []Asset{
-		{ID: "asset1", Name: "Genesis Asset", Description: "First Asset", OwnerID: "Org1MSP", Status: "ACTIVE", View: "Public", LastUpdatedBy: "Init", LastUpdatedAt: time.Now().Format(time.RFC3339)},
+		{ID: "asset1", Name: "Genesis Asset", Description: "First Asset", OwnerID: "Org1MSP", Status: "ACTIVE", View: "Public", LastUpdatedBy: "Init", LastUpdatedAt: now /* time.Now().Format(time.RFC3339) */},
 	}
 
 	for _, asset := range assets {
@@ -79,6 +83,10 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 	// In a real scenario, use GetID() for specific user, but MSPID is fine for Org-level ownnership demo
 	// clientID, _ := ctx.GetClientIdentity().GetID() // This returns the long x509 subject
 
+	// Deterministic timestamp from Fabric Stub
+	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
+	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
+
 	asset := Asset{
 		ID:              id,
 		Name:            name,
@@ -87,10 +95,10 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 		ProposedOwnerID: "",
 		ImageURL:        imageURL,
 		ImageHash:       imageHash,
-		Status:          "ACTIVE",
+		Status:          "ACTIVE", // ACTIVE, FROZEN, DELETED, PENDING_TRANSFER
 		View:            view,
 		LastUpdatedBy:   clientMSPID,
-		LastUpdatedAt:   time.Now().Format(time.RFC3339),
+		LastUpdatedAt:   now, // time.Now().Format(time.RFC3339),
 	}
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {
@@ -139,10 +147,14 @@ func (s *SmartContract) ProposeTransfer(ctx contractapi.TransactionContextInterf
 		return fmt.Errorf("asset is not ACTIVE (current status: %s)", asset.Status)
 	}
 
+	// Deterministic timestamp from Fabric Stub
+	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
+	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
+
 	asset.Status = "PENDING_TRANSFER"
 	asset.ProposedOwnerID = newOwnerID
 	asset.LastUpdatedBy = clientMSPID
-	asset.LastUpdatedAt = time.Now().Format(time.RFC3339)
+	asset.LastUpdatedAt = now // time.Now().Format(time.RFC3339)
 
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {
@@ -172,11 +184,52 @@ func (s *SmartContract) AcceptTransfer(ctx contractapi.TransactionContextInterfa
 		return fmt.Errorf("you are not the proposed owner for this asset")
 	}
 
+	// Deterministic timestamp from Fabric Stub
+	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
+	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
+
 	asset.OwnerID = asset.ProposedOwnerID
 	asset.ProposedOwnerID = ""
 	asset.Status = "ACTIVE"
 	asset.LastUpdatedBy = clientMSPID
-	asset.LastUpdatedAt = time.Now().Format(time.RFC3339)
+	asset.LastUpdatedAt = now // time.Now().Format(time.RFC3339)
+
+	assetJSON, err := json.Marshal(asset)
+	if err != nil {
+		return err
+	}
+
+	return ctx.GetStub().PutState(id, assetJSON)
+}
+
+// UpdateAssetStatus allows an authority to change the status of an asset (e.g., FROZEN, ACTIVE, DELETED)
+func (s *SmartContract) UpdateAssetStatus(ctx contractapi.TransactionContextInterface, id string, newStatus string) error {
+	// 1. SECURITY: Assert Admin status (using CID library)
+	// In production, users should be registered with an 'admin' attribute
+	// For this skeleton, we also allow the default Peer Admin (Org1MSP/Org2MSP)
+	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
+	if err != nil {
+		return err
+	}
+
+	// Dynamic check for admin attribute
+	isAdmin, found, _ := ctx.GetClientIdentity().GetAttributeValue("admin")
+	if (!found || isAdmin != "true") && clientMSPID != "Org1MSP" && clientMSPID != "Org2MSP" {
+		return fmt.Errorf("administrative access required for this operation")
+	}
+
+	asset, err := s.ReadAsset(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Deterministic timestamp from Fabric Stub
+	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
+	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
+
+	asset.Status = newStatus
+	asset.LastUpdatedBy = clientMSPID + "_ADMIN"
+	asset.LastUpdatedAt = now // time.Now().Format(time.RFC3339)
 
 	assetJSON, err := json.Marshal(asset)
 	if err != nil {

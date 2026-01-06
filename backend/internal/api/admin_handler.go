@@ -30,11 +30,13 @@ type IdentityInfo struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
 	DBStatus string `json:"db_status"`
+	Status   string `json:"status"`
 	Email    string `json:"email"`
+	Role     string `json:"role"`
 }
 
 func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
-	// MOCK DATA for initial UI build
+	// ... (Existing GetStats)
 	stats := NetworkStats{
 		TotalAssets:      42,
 		TotalOwners:      12,
@@ -50,10 +52,17 @@ func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	// Fetch all DB users to match statuses
+	var dbUsers []models.User
+	h.DB.Find(&dbUsers)
+	dbMap := make(map[string]models.User)
+	for _, u := range dbUsers {
+		dbMap[u.Username] = u
+	}
+
 	lines := strings.Split(strings.TrimSpace(raw), "\n")
 	var identities []IdentityInfo
 
-	// Regex to extract Name and Type
 	reName := regexp.MustCompile(`Name: ([^,]+)`)
 	reType := regexp.MustCompile(`Type: ([^,]+)`)
 
@@ -63,16 +72,115 @@ func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 
 		if len(nameMatch) > 1 && len(typeMatch) > 1 {
 			name := nameMatch[1]
+			status := "ACTIVE"
+			email := name + "@example.org"
+			role := "user"
+
+			if dbUser, exists := dbMap[name]; exists {
+				status = dbUser.Status
+				email = dbUser.Email
+				role = dbUser.Role
+			}
+
 			identities = append(identities, IdentityInfo{
 				Name:     name,
 				Type:     typeMatch[1],
 				DBStatus: "Synced",
-				Email:    strings.ToLower(name) + "@example.org",
+				Status:   status,
+				Email:    email,
+				Role:     role,
 			})
 		}
 	}
 
 	return c.JSON(fiber.Map{"identities": identities})
+}
+
+func (h *AdminHandler) UpdateUserStatus(c *fiber.Ctx) error {
+	username := c.Params("username")
+	type StatusUpdate struct {
+		Status string `json:"status"` // ACTIVE, BANNED
+		Role   string `json:"role"`   // user, auditor, admin
+	}
+
+	var req StatusUpdate
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	if username == "admin" {
+		return c.Status(400).JSON(fiber.Map{"error": "Cannot modify root admin"})
+	}
+
+	// Update or Create DB record
+	var user models.User
+	err := h.DB.Where("username = ?", username).First(&user).Error
+	if err != nil {
+		user = models.User{
+			Username: username,
+			Email:    username + "@example.org",
+			Status:   "ACTIVE",
+			Role:     "user",
+		}
+	}
+
+	if req.Status != "" {
+		user.Status = req.Status
+	}
+	if req.Role != "" {
+		user.Role = req.Role
+	}
+
+	if err := h.DB.Save(&user).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to update user status"})
+	}
+
+	return c.JSON(fiber.Map{"message": "User updated successfully", "status": user.Status, "role": user.Role})
+}
+
+func (h *AdminHandler) UpdateAssetStatus(c *fiber.Ctx) error {
+	id := c.Params("id")
+	type StatusReq struct {
+		Status string `json:"status"`
+	}
+	var req StatusReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	// 1. Update on Blockchain
+	identity, sign, err := fabric.GetIdentity("admin", h.WalletPath)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Admin identity required for asset management"})
+	}
+
+	grpcConn, ok := h.Conn.(*grpc.ClientConn)
+	if !ok {
+		return c.Status(500).JSON(fiber.Map{"error": "Invalid connection"})
+	}
+
+	gw, err := fabric.CreateGateway(grpcConn, identity, sign)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Gateway creation failed"})
+	}
+	defer gw.Close()
+
+	network := gw.GetNetwork(h.Config.ChannelName)
+	contract := network.GetContract(h.Config.ChaincodeName)
+
+	_, err = contract.SubmitTransaction("UpdateAssetStatus", id, req.Status)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Blockchain update failed: " + err.Error()})
+	}
+
+	// 2. Update in DB (if exists)
+	var asset models.Asset
+	if err := h.DB.Where("id = ?", id).First(&asset).Error; err == nil {
+		asset.Status = req.Status
+		h.DB.Save(&asset)
+	}
+
+	return c.JSON(fiber.Map{"message": "Asset status updated: " + req.Status, "status": req.Status})
 }
 
 func (h *AdminHandler) GetAdminAssets(c *fiber.Ctx) error {

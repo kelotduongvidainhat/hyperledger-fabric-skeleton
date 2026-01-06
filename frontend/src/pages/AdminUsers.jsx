@@ -2,26 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Database, Server, RefreshCcw, AlertTriangle, Layout, Users } from 'lucide-react';
+import { ShieldCheck, Database, Server, RefreshCcw, AlertTriangle, Layout, Users, Ban, CheckCircle, UserCheck, ShieldAlert } from 'lucide-react';
 
 const AdminUsers = () => {
     const { token } = useAuth();
     const [identities, setIdentities] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [actionLoading, setActionLoading] = useState(null);
+
+    const fetchUsers = async () => {
+        try {
+            const res = await api.get('/admin/users', { headers: { Authorization: `Bearer ${token}` } });
+            setIdentities(res.data.identities);
+        } catch (err) {
+            console.error("Failed to fetch identities", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchUsers = async () => {
-            try {
-                const res = await api.get('/admin/users', { headers: { Authorization: `Bearer ${token}` } });
-                setIdentities(res.data.identities);
-            } catch (err) {
-                console.error("Failed to fetch identities", err);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchUsers();
     }, [token]);
+
+    const handleUpdateStatus = async (username, status, role = "") => {
+        setActionLoading(username);
+        try {
+            await api.post(`/admin/users/${username}/status`, { status, role }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            await fetchUsers();
+        } catch (err) {
+            console.error("Update failed", err);
+            alert("Failed to update user: " + (err.response?.data?.error || err.message));
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
     if (loading) return <div className="p-8 font-serif italic">Consulting the registry...</div>;
 
@@ -30,14 +47,14 @@ const AdminUsers = () => {
             <div className="flex justify-between items-end border-b border-ink-800/20 pb-4">
                 <div>
                     <h2 className="text-3xl font-serif text-ink-800">Identity Audit</h2>
-                    <p className="text-xs uppercase tracking-widest text-ink-800/50">Cross-Referencing On-Chain & Off-Chain Data</p>
+                    <p className="text-xs uppercase tracking-widest text-ink-800/50">Unified Governance Control</p>
                 </div>
                 <div className="flex gap-2">
-                    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-green-100 text-green-800 rounded border border-green-200">
-                        <Server size={12} /> Fabric CA
+                    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-green-100 text-green-800 rounded border border-green-200 shadow-sm">
+                        <Server size={12} /> Fabric CA: Online
                     </span>
-                    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-amber-100 text-amber-800 rounded border border-amber-200">
-                        <Database size={12} /> DB: Pending Sync
+                    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 bg-ink-800 text-parchment-100 rounded border border-ink-800 shadow-sm">
+                        <Database size={12} /> DB: Integrated
                     </span>
                 </div>
             </div>
@@ -54,36 +71,90 @@ const AdminUsers = () => {
                     <thead className="bg-parchment-200 text-ink-800 uppercase text-[10px] font-bold tracking-widest">
                         <tr>
                             <th className="px-6 py-4">Identity Name</th>
-                            <th className="px-6 py-4">Type</th>
-                            <th className="px-6 py-4">On-Chain Status</th>
-                            <th className="px-6 py-4">DB Profile</th>
-                            <th className="px-6 py-4">Last Auth</th>
+                            <th className="px-6 py-4">Role / Type</th>
+                            <th className="px-6 py-4">On-Chain</th>
+                            <th className="px-6 py-4">DB Status</th>
+                            <th className="px-6 py-4 text-right">System Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-ink-800/5">
                         {identities.map((id) => (
-                            <tr key={id.name} className="hover:bg-parchment-50 transition-colors">
-                                <td className="px-6 py-4 font-medium text-ink-900">{id.name}</td>
-                                <td className="px-6 py-4">
-                                    <span className="text-[10px] px-2 py-0.5 bg-parchment-100 border border-ink-800/10 rounded-full font-bold uppercase">
-                                        {id.type}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-1.5 text-green-700 font-bold text-xs uppercase tracking-tighter">
-                                        <ShieldCheck size={14} /> On-Chain
-                                    </div>
-                                </td>
+                            <tr key={id.name} className="hover:bg-parchment-50 transition-colors group">
                                 <td className="px-6 py-4">
                                     <div className="flex flex-col">
-                                        <div className="text-xs font-bold text-ink-800">{id.email}</div>
-                                        <div className="text-[10px] text-ink-800/40 uppercase tracking-widest flex items-center gap-1">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> {id.db_status}
-                                        </div>
+                                        <span className="font-bold text-ink-900">{id.name}</span>
+                                        <span className="text-[10px] text-ink-800/40 italic truncate max-w-[150px]">{id.email}</span>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4 text-xs text-ink-800/40 font-serif italic">
-                                    {new Date().toLocaleDateString()}
+                                <td className="px-6 py-4">
+                                    <div className="flex flex-col gap-1">
+                                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase border w-fit ${id.role === 'admin' ? 'bg-bronze text-white border-bronze' : id.role === 'auditor' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-parchment-100 text-ink-800/60 border-ink-800/10'}`}>
+                                            {id.role}
+                                        </span>
+                                        <span className="text-[8px] text-ink-800/30 uppercase tracking-tighter">Type: {id.type}</span>
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="flex items-center gap-1 text-green-700 font-bold text-[10px] uppercase">
+                                        <ShieldCheck size={12} /> Linked
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <StatusBadge status={id.status} />
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    {id.name !== 'admin' && (
+                                        <div className="flex justify-end gap-2">
+                                            {id.status === 'PENDING' && (
+                                                <button
+                                                    onClick={() => handleUpdateStatus(id.name, 'ACTIVE')}
+                                                    disabled={actionLoading === id.name}
+                                                    className="flex items-center gap-1.5 px-3 py-1 bg-green-600 text-white rounded text-[9px] font-bold uppercase hover:bg-green-700 transition-all disabled:opacity-50"
+                                                >
+                                                    <CheckCircle size={12} /> Approve
+                                                </button>
+                                            )}
+                                            {id.status === 'ACTIVE' && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleUpdateStatus(id.name, 'BANNED')}
+                                                        disabled={actionLoading === id.name}
+                                                        className="flex items-center gap-1.5 px-3 py-1 border border-red-200 text-red-600 rounded text-[9px] font-bold uppercase hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
+                                                    >
+                                                        <Ban size={12} /> Ban
+                                                    </button>
+                                                    {id.role !== 'auditor' && (
+                                                        <button
+                                                            onClick={() => handleUpdateStatus(id.name, '', 'auditor')}
+                                                            disabled={actionLoading === id.name}
+                                                            className="flex items-center gap-1.5 px-3 py-1 border border-blue-200 text-blue-600 rounded text-[9px] font-bold uppercase hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
+                                                        >
+                                                            <UserCheck size={12} /> Auditor
+                                                        </button>
+                                                    )}
+                                                    {id.role === 'auditor' && (
+                                                        <button
+                                                            onClick={() => handleUpdateStatus(id.name, '', 'user')}
+                                                            disabled={actionLoading === id.name}
+                                                            className="flex items-center gap-1.5 px-3 py-1 border border-parchment-500 text-ink-800/60 rounded text-[9px] font-bold uppercase hover:bg-ink-800 hover:text-white transition-all disabled:opacity-50"
+                                                        >
+                                                            Demote
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
+                                            {id.status === 'BANNED' && (
+                                                <button
+                                                    onClick={() => handleUpdateStatus(id.name, 'ACTIVE')}
+                                                    disabled={actionLoading === id.name}
+                                                    className="flex items-center gap-1.5 px-3 py-1 bg-ink-800 text-white rounded text-[9px] font-bold uppercase hover:bg-black transition-all disabled:opacity-50"
+                                                >
+                                                    <RefreshCcw size={12} /> Re-Activate
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                    {id.name === 'admin' && <span className="text-[9px] font-bold text-ink-800/20 italic">Root Authority</span>}
                                 </td>
                             </tr>
                         ))}
@@ -91,15 +162,34 @@ const AdminUsers = () => {
                 </table>
             </div>
 
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex gap-3 items-start">
-                <AlertTriangle className="text-amber-600 shrink-0" size={20} />
-                <div className="text-xs text-amber-800 leading-relaxed">
-                    <strong>Technical Note:</strong> Off-chain database profiles (PostgreSQL) are presently being implemented.
-                    The table above shows real identities from the Fabric CA, but detailed user metadata (emails, full names, assigned roles)
-                    will be populated once the synchronization worker is activated in <strong>Phase 2</strong>.
+            <div className="p-6 bg-parchment-200 rounded-lg border-l-4 border-bronze flex gap-4 items-start shadow-sm">
+                <ShieldAlert className="text-bronze shrink-0" size={24} />
+                <div className="space-y-1">
+                    <h4 className="text-sm font-bold uppercase tracking-widest text-ink-800">Governance Security Policy</h4>
+                    <p className="text-[11px] text-ink-800/70 leading-relaxed font-serif italic">
+                        Banning a user blocks application-level access immediately via PostgreSQL status checks.
+                        Root Admin identity is protected from self-modification. All status changes are logged
+                        to the off-chain audit trail for compliance verification.
+                    </p>
                 </div>
             </div>
         </div>
+    );
+};
+
+const StatusBadge = ({ status }) => {
+    const isActive = status === 'ACTIVE';
+    const isPending = status === 'PENDING';
+    const isBanned = status === 'BANNED';
+
+    return (
+        <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase border tracking-wider ${isActive ? 'bg-green-50 text-green-700 border-green-200' :
+                isPending ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                    'bg-red-50 text-red-700 border-red-200'
+            }`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-500' : isPending ? 'bg-amber-500' : 'bg-red-500'}`}></div>
+            {status}
+        </span>
     );
 };
 

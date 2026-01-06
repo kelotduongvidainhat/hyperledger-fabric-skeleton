@@ -9,6 +9,7 @@ type User struct {
 	Username  string    `gorm:"uniqueIndex;not null" json:"username"`
 	Email     string    `gorm:"uniqueIndex" json:"email"`
 	Role      string    `gorm:"default:user" json:"role"`
+	Status    string    `gorm:"default:PENDING" json:"status"` // PENDING, ACTIVE, BANNED
 	DBStatus  string    `gorm:"default:Synced" json:"db_status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
