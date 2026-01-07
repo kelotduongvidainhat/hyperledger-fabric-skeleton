@@ -40,6 +40,8 @@ const AdminRoute = ({ children }) => {
   return children;
 };
 
+import Settings from './pages/Settings';
+
 function App() {
   return (
     <AuthProvider>
@@ -84,6 +86,14 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <AssetDetails />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <Layout>
+                <Settings />
               </Layout>
             </ProtectedRoute>
           } />

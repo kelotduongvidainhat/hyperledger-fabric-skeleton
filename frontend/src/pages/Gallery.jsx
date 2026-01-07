@@ -28,7 +28,7 @@ const Gallery = () => {
 
     // Filter logic for "Public Gallery"
     const publicAssets = assets.filter(asset => {
-        return asset.view?.toUpperCase() === 'PUBLIC';
+        return asset.view?.toUpperCase() === 'PUBLIC' && asset.status !== 'DELETED';
     });
 
     const filteredAssets = publicAssets.filter(a =>

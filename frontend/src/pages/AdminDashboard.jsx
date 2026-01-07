@@ -145,19 +145,21 @@ const AdminDashboard = () => {
                         <Link to="/admin/assets" className="text-[10px] uppercase font-bold text-bronze hover:underline">Full Inventory</Link>
                     </div>
                     <div className="space-y-3">
-                        {recentAssets.slice(0, 5).map((asset) => (
+                        {recentAssets.filter(a => a.status !== 'DELETED').slice(0, 5).map((asset) => (
                             <div key={asset.ID} className="flex justify-between items-center p-4 bg-white/50 border border-ink-800/10 rounded hover:border-bronze transition-colors">
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
-                                        <span className="font-medium tracking-tight text-ink-800">{asset.Name}</span>
+                                        <span className="font-medium tracking-tight text-ink-800">{asset.name}</span>
                                         <span className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-ink-800 text-parchment-100 border-ink-800">
-                                            {asset.Action}
+                                            {asset.action}
                                         </span>
                                     </div>
                                     <span className="text-[9px] font-mono text-ink-800/40 uppercase tracking-tighter">ID: {asset.ID}</span>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-[10px] font-bold text-ink-800/60">{asset.LastUpdatedBy.split('::')[1] || asset.LastUpdatedBy}</div>
+                                    <div className="text-[10px] font-bold text-ink-800/60">
+                                        {asset.lastUpdatedBy ? (asset.lastUpdatedBy.split('::')[1] || asset.lastUpdatedBy) : 'System'}
+                                    </div>
                                     <div className="text-[8px] uppercase text-ink-800/30">Custodian</div>
                                 </div>
                             </div>

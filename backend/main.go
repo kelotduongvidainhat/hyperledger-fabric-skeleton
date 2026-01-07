@@ -130,6 +130,7 @@ func main() {
 	})
 	app.Post("/auth/login", authHandler.Login)
 	app.Post("/auth/register", authHandler.Register)
+	app.Delete("/auth/me", auth.Middleware(), authHandler.DeleteAccount)
 
 	// ADMIN ROUTES (Protected + Role Check)
 	adminGroup := app.Group("/admin", auth.Middleware())
@@ -181,9 +182,8 @@ func main() {
 			fullID := fmt.Sprintf("%s::%s", org, username)
 
 			var assets []models.Asset
-			// Logic: Show if PUBLIC OR if Owner is the current user
-			// We use UPPER(view) for robustness against legacy data
-			err := database.Where("UPPER(view) = 'PUBLIC' OR owner_id = ?", fullID).Find(&assets).Error
+			// Logic: Show if (PUBLIC OR Owner) AND NOT DELETED
+			err := database.Where("(UPPER(view) = 'PUBLIC' OR owner_id = ?) AND status != 'DELETED'", fullID).Find(&assets).Error
 			if err != nil {
 				return c.Status(500).SendString("Database error: " + err.Error())
 			}

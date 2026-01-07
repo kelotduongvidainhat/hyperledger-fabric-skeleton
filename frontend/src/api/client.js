@@ -65,4 +65,9 @@ export const markNotificationRead = async (id) => {
     return response.data;
 };
 
+export const deleteAccount = async () => {
+    const response = await api.delete('/auth/me');
+    return response.data;
+};
+
 export default api;

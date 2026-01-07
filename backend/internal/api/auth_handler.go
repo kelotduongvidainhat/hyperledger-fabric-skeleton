@@ -55,6 +55,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		if user.Status == "BANNED" {
 			return c.Status(403).JSON(fiber.Map{"error": "Your account has been banned. Contact Admin."})
 		}
+		if user.Status == "DELETED" {
+			return c.Status(403).JSON(fiber.Map{"error": "This account has been deleted."})
+		}
 		// Backfill Org if missing
 		if user.Org == "" && req.Username != "admin" {
 			user.Org = finalCfg.MSPID
@@ -154,4 +157,31 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		"message": "User registered successfully. Status: PENDING (Awaiting Admin Approval)",
 		"details": resp,
 	})
+}
+
+// DeleteAccount allows a user to soft-delete their own account
+func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
+	username := c.Locals("user").(string)
+	org := c.Locals("org").(string)
+	fullID := fmt.Sprintf("%s::%s", org, username)
+
+	if username == "admin" {
+		return c.Status(400).JSON(fiber.Map{"error": "Root administrator account cannot be deleted"})
+	}
+
+	// 1. Integrity Check: Does the user own any active assets?
+	var assetCount int64
+	h.DB.Model(&models.Asset{}).Where("owner_id = ? AND status != ?", fullID, "DELETED").Count(&assetCount)
+	if assetCount > 0 {
+		return c.Status(400).JSON(fiber.Map{
+			"error": fmt.Sprintf("Account cannot be deleted while you own %d active artifacts. Please transfer or delete your artifacts first.", assetCount),
+		})
+	}
+
+	// 2. Soft Delete in Database
+	if err := h.DB.Model(&models.User{}).Where("username = ? AND org = ?", username, org).Update("status", "DELETED").Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to deactivate account"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Account successfully deactivated."})
 }

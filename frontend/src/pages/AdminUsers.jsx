@@ -195,13 +195,19 @@ const StatusBadge = ({ status }) => {
     const isActive = status === 'ACTIVE';
     const isPending = status === 'PENDING';
     const isBanned = status === 'BANNED';
+    const isDeleted = status === 'DELETED';
 
     return (
         <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase border tracking-wider ${isActive ? 'bg-green-50 text-green-700 border-green-200' :
-            isPending ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                'bg-red-50 text-red-700 border-red-200'
+                isPending ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                    isDeleted ? 'bg-slate-50 text-slate-700 border-slate-200' :
+                        'bg-red-50 text-red-700 border-red-200'
             }`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-500' : isPending ? 'bg-amber-500' : 'bg-red-500'}`}></div>
+            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-500' :
+                    isPending ? 'bg-amber-500' :
+                        isDeleted ? 'bg-slate-400' :
+                            'bg-red-500'
+                }`}></div>
             {status}
         </span>
     );

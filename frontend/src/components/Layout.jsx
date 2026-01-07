@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Scroll, Feather, Globe, User, Bell, CheckCircle, Info, AlertTriangle } from 'lucide-react';
+import { Scroll, Feather, Globe, User, Bell, CheckCircle, Info, AlertTriangle, Settings as SettingsIcon, Library } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchNotifications, markNotificationRead } from '../api/client';
@@ -84,7 +84,7 @@ const Layout = ({ children }) => {
                         <nav className="flex gap-8 items-center">
                             <div className="flex gap-6 text-sm font-bold uppercase tracking-widest text-ink-800/70">
                                 <Link to="/" className="flex items-center gap-2 hover:text-bronze transition-colors">
-                                    <User className="w-4 h-4" /> Collection
+                                    <Library className="w-4 h-4" /> Collection
                                 </Link>
                                 <Link to="/gallery" className="flex items-center gap-2 hover:text-bronze transition-colors">
                                     <Globe className="w-4 h-4" /> Gallery
@@ -146,10 +146,10 @@ const Layout = ({ children }) => {
                                     </div>
                                 )}
 
-                                <span className="flex items-center gap-2 px-4 py-2 bg-parchment-50 rounded-lg border border-ink-900/10 shadow-sm">
-                                    <Feather className="w-4 h-4 text-bronze" />
-                                    <span className="text-sm font-medium">{user?.username || 'Guest'}</span>
-                                </span>
+                                <Link to="/settings" className="flex items-center gap-2 px-3 py-2 text-ink-800/70 hover:text-bronze transition-colors group">
+                                    <User className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+                                    <span className="text-sm font-bold uppercase tracking-widest">{user?.username || 'Guest'}</span>
+                                </Link>
                                 <button
                                     onClick={logout}
                                     className="text-xs uppercase font-bold text-ink-800/50 hover:text-wax-red transition-colors"

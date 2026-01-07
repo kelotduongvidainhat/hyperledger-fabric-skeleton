@@ -34,7 +34,7 @@ const Dashboard = () => {
     const myAssets = assets.filter(asset => {
         const isOwner = asset.ownerId === userFullID;
         const isProposed = asset.proposedOwnerId === userFullID;
-        return isOwner || isProposed;
+        return (isOwner || isProposed) && asset.status !== 'DELETED';
     });
 
     const applyViewFilter = (items) => {
