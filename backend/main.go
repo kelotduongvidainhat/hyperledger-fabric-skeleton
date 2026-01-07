@@ -17,6 +17,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/hyperledger/fabric-gateway/pkg/client"
+	shell "github.com/ipfs/go-ipfs-api"
 )
 
 func main() {
@@ -100,6 +101,12 @@ func main() {
 		DB:         database,
 	}
 
+	// 3. Setup IPFS Handler
+	sh := shell.NewShell("localhost:5001")
+	ipfsHandler := &api.IPFSHandler{
+		Shell: sh,
+	}
+
 	// SETUP SERVER
 	app := fiber.New()
 	app.Use(cors.New())
@@ -131,6 +138,9 @@ func main() {
 	app.Post("/auth/login", authHandler.Login)
 	app.Post("/auth/register", authHandler.Register)
 	app.Delete("/auth/me", auth.Middleware(), authHandler.DeleteAccount)
+
+	// IPFS ROUTES
+	app.Post("/api/ipfs/upload", auth.Middleware(), ipfsHandler.Upload)
 
 	// ADMIN ROUTES (Protected + Role Check)
 	adminGroup := app.Group("/admin", auth.Middleware())

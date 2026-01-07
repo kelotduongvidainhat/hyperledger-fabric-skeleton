@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { fetchAssets, fetchAssetById, fetchHistory, proposeTransfer, acceptTransfer, updateAssetView, deleteAsset } from '../api/client';
-import { ArrowLeft, ArrowRight, CheckCircle, Shield, History, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Shield, History, Eye, EyeOff, Trash2, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const AssetDetails = () => {
@@ -95,6 +95,12 @@ const AssetDetails = () => {
     const isProposedRecipient = asset.proposedOwnerId === userFullID;
     const isPendingTransfer = asset.status === 'PENDING_TRANSFER';
 
+    // Future-proof storage resolution
+    const sourceUrl = asset.imageUrl || '';
+    const displayUrl = sourceUrl.startsWith('ipfs://')
+        ? sourceUrl.replace('ipfs://', 'https://ipfs.io/ipfs/')
+        : sourceUrl;
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
@@ -107,10 +113,40 @@ const AssetDetails = () => {
                     <ArrowLeft className="w-4 h-4" /> {isFromAdmin ? "Back to Assets" : "Back to Registry"}
                 </Link>
 
-                <div className="bg-white p-2 border border-ink-900/10 rounded-xl shadow-sm">
-                    <div className="aspect-square bg-parchment-200 rounded-lg overflow-hidden">
-                        <img src={asset.imageUrl} className="w-full h-full object-cover grayscale-[20%] sepia-[10%]" />
-                    </div>
+                <div className="group relative bg-white p-2 border border-ink-900/10 rounded-xl shadow-sm overflow-hidden">
+                    <a
+                        href={displayUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block aspect-square bg-parchment-200 rounded-lg overflow-hidden relative cursor-zoom-in"
+                        title="Open Source Record"
+                    >
+                        <img
+                            src={displayUrl}
+                            className="w-full h-full object-cover grayscale-[20%] sepia-[10%] group-hover:grayscale-0 group-hover:sepia-0 transition-all duration-500"
+                            alt={asset.name}
+                        />
+                        <div className="absolute inset-0 bg-ink-900/0 group-hover:bg-ink-900/20 transition-all flex items-center justify-center">
+                            <ExternalLink className="text-white opacity-0 group-hover:opacity-100 transition-all transform scale-50 group-hover:scale-100" />
+                        </div>
+                    </a>
+
+                    {sourceUrl.startsWith('ipfs://') && (
+                        <div className="mt-4 px-3 py-2 bg-parchment-50 rounded border border-ink-900/5 flex items-center justify-between">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <LinkIcon size={12} className="text-bronze shrink-0" />
+                                <span className="text-[10px] font-mono text-ink-900/40 truncate">{sourceUrl}</span>
+                            </div>
+                            <a
+                                href={displayUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] font-bold text-bronze hover:underline shrink-0"
+                            >
+                                VIEW CID
+                            </a>
+                        </div>
+                    )}
                 </div>
 
                 {/* Actions Panel */}

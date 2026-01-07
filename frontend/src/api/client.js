@@ -70,4 +70,15 @@ export const deleteAccount = async () => {
     return response.data;
 };
 
+export const uploadToIPFS = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/api/ipfs/upload', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
+    return response.data;
+};
+
 export default api;

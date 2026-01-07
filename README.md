@@ -15,7 +15,8 @@ A comprehensive starter template for building production-grade Hyperledger Fabri
   - **Asset Lifecycle:** Create, Read, Update, Delete, Transfer with full history auditing.
   - **Admin Dashboard:** Integrated oversight of all network identities and assets.
   - **Data Sync:** Manual and automated "Dual Source" synchronization (Ledger ↔ PostgreSQL).
-  - **Security:** RBAC (Role Based Access Control) for standard users and administrators.
+  - **IPFS Integration:** Decentralized image storage for artifact permanence.
+  - **Enhanced UI/UX:** Premium design with dynamic asset cards and glassmorphism.
 
 - **Developer Experience:**
   - **One-Click Setup:** `./scripts/fresh-start.sh` handles EVERYTHING
@@ -63,12 +64,12 @@ Once complete:
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common fixes
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Moving to production
 
-## 🔄 Recent Updates (Privacy & UI Specialization)
+## 🔄 Recent Updates (Decentralization & Self-Service)
+- **IPFS Storage:** Artifact images are now stored on IPFS. The `CreateAsset` flow includes an automated upload proxy, anchoring decentralized content IDs (CIDs) to the blockchain.
+- **Account Deactivation:** Users can now "Soft Delete" their accounts from the Settings page, preserving blockchain history while disabling system access and asset visibility.
+- **Premium Asset UI:** Redesigned `AssetCard` with refined status badges, hover effects, and IPFS gateway resolution.
+- **Collection UX:** Replaced profile border with a cleaner `User` icon and updated collection link to a `Library` theme for better semantics.
 - **Privacy Filtering:** Backend now enforces strict visibility rules. Non-admins can only see `PUBLIC` assets or those they own.
-- **Gallery vs. Collection:** Frontend split into a global **Public Gallery** (database-driven discovery) and a personal **My Collection** (management workspace).
-- **Read-Only Detail Pages:** Specialized `/gallery/:id` route for browsing public artifacts without management overhead.
-- **Enhanced JWT Identity:** Token now includes user organization for robust cross-layer identity verification.
-- **Standardized Visibility:** Unified all asset visibility to uppercase `PUBLIC` and `PRIVATE` constants across Chaincode, Backend, and Frontend.
 
 ## License
 MIT

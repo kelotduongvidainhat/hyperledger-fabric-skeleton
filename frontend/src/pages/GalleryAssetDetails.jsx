@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { fetchAssetById, fetchHistory } from '../api/client';
-import { ArrowLeft, Globe, Shield, History, Clock, User } from 'lucide-react';
+import { ArrowLeft, Globe, Shield, History, Clock, User, ExternalLink, Link as LinkIcon } from 'lucide-react';
 
 const GalleryAssetDetails = () => {
     const { id } = useParams();
@@ -48,13 +48,52 @@ const GalleryAssetDetails = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         {/* Image Section */}
                         <div className="space-y-6">
-                            <div className="aspect-square bg-parchment-200 rounded-2xl border border-ink-900/10 overflow-hidden shadow-sm flex items-center justify-center">
-                                {asset.imageUrl ? (
-                                    <img src={asset.imageUrl} alt={asset.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="text-ink-900/20 text-6xl font-serif">?</div>
-                                )}
-                            </div>
+                            {/* Storage Abstraction */}
+                            {(() => {
+                                const sourceUrl = asset.imageUrl || '';
+                                const displayUrl = sourceUrl.startsWith('ipfs://')
+                                    ? sourceUrl.replace('ipfs://', 'https://ipfs.io/ipfs/')
+                                    : sourceUrl;
+
+                                return (
+                                    <>
+                                        <div className="group relative aspect-square bg-parchment-200 rounded-2xl border border-ink-900/10 overflow-hidden shadow-sm flex items-center justify-center">
+                                            {asset.imageUrl ? (
+                                                <a
+                                                    href={displayUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="w-full h-full cursor-zoom-in"
+                                                >
+                                                    <img src={displayUrl} alt={asset.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                                    <div className="absolute inset-0 bg-ink-900/0 group-hover:bg-ink-900/10 transition-all flex items-center justify-center">
+                                                        <ExternalLink className="text-white opacity-0 group-hover:opacity-100 transition-all" />
+                                                    </div>
+                                                </a>
+                                            ) : (
+                                                <div className="text-ink-900/20 text-6xl font-serif">?</div>
+                                            )}
+                                        </div>
+
+                                        {sourceUrl.startsWith('ipfs://') && (
+                                            <div className="p-4 bg-white rounded-xl border border-ink-900/10 shadow-sm flex items-center justify-between">
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    <LinkIcon size={14} className="text-bronze shrink-0" />
+                                                    <span className="text-xs font-mono text-ink-900/40 truncate">{sourceUrl}</span>
+                                                </div>
+                                                <a
+                                                    href={displayUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-xs font-bold text-bronze hover:underline shrink-0"
+                                                >
+                                                    VIEW CID
+                                                </a>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
 
                         {/* Info Section */}

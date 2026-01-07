@@ -7,8 +7,12 @@ const GalleryAssetCard = ({ asset }) => {
         <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-ink-900/10 overflow-hidden group flex flex-col h-full">
             {/* Image Area */}
             <div className="h-48 bg-parchment-200 relative overflow-hidden flex items-center justify-center">
-                {asset.imageUrl && !asset.imageUrl.includes('ipfs') ? (
-                    <img src={asset.imageUrl} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                {asset.imageUrl ? (
+                    <img
+                        src={asset.imageUrl}
+                        alt={asset.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
                 ) : (
                     <div className="text-ink-900/20 text-4xl font-serif">?</div>
                 )}

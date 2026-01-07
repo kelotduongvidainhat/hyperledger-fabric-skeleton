@@ -27,9 +27,10 @@ This roadmap outlines the future development and milestones for the Ownership Re
 
 ## Phase 3: Advanced Features (Short Term)
 - [ ] **IPFS Integration**: 
-    - Transition to decentralized IPFS for robust, censorship-resistant storage.
-    - Backend: Implement file upload endpoint to push images to IPFS.
-    - Store the IPFS Content ID (CID) on-chain.
+    - [x] Transition to decentralized IPFS for robust, censorship-resistant storage.
+    - [ ] Backend: Implement file upload endpoint to push images to IPFS.
+    - [ ] Store the IPFS Content ID (CID) on-chain.
+    - [ ] **Long Term**: Integrate with Pinata/managed IPFS services for persistent pinning and better availability.
 - [x] **Role Management**:
     - [x] **Admin**: User Management (Approvals/Ban), Asset Status Override (Freeze/Revoke).
     - [x] **Auditor**: Profile promotion and dedicated role assignment.
