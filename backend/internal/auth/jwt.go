@@ -13,14 +13,16 @@ var secretKey = []byte("super-secret-key-change-in-production")
 type UserClaims struct {
 	Username string `json:"username"`
 	Role     string `json:"role"`
+	Org      string `json:"org"`
 	jwt.RegisteredClaims
 }
 
 // GenerateToken creates a signed JWT
-func GenerateToken(username, role string) (string, error) {
+func GenerateToken(username, role, org string) (string, error) {
 	claims := UserClaims{
 		username,
 		role,
+		org,
 		jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			Issuer:    "ownership-registry",
@@ -62,6 +64,7 @@ func Middleware() fiber.Handler {
 		// Dictionary to store user info in context
 		c.Locals("user", claims.Username)
 		c.Locals("role", claims.Role)
+		c.Locals("org", claims.Org)
 
 		return c.Next()
 	}

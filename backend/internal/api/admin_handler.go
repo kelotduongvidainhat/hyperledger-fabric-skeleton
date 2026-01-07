@@ -203,13 +203,10 @@ func (h *AdminHandler) GetAdminAssets(c *fiber.Ctx) error {
 		})
 	}
 
-	// Blockchain logic
+	// Blockchain logic: Admin only
 	id, sign, err := fabric.GetIdentity("admin", h.WalletPath)
 	if err != nil {
-		id, sign, err = fabric.GetIdentity("test_user_post_tls", h.WalletPath)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "No identity available"})
-		}
+		return c.Status(401).JSON(fiber.Map{"error": "Admin identity not found in wallet"})
 	}
 
 	// Type assert Conn
@@ -247,10 +244,7 @@ func (h *AdminHandler) Sync(c *fiber.Ctx) error {
 	// 1. Fetch all assets from Blockchain
 	id, sign, err := fabric.GetIdentity("admin", h.WalletPath)
 	if err != nil {
-		id, sign, err = fabric.GetIdentity("test_user_post_tls", h.WalletPath)
-		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "No identity available for sync"})
-		}
+		return c.Status(401).JSON(fiber.Map{"error": "Admin identity not found in wallet. Please register 'admin' first."})
 	}
 
 	grpcConn, ok := h.Conn.(*grpc.ClientConn)

@@ -29,7 +29,8 @@ Deploy the Smart Contract using **Chaincode-as-a-Service**.
 2. **Execute deployment inside CLI**:
 ```bash
 # Copy the package to CLI
-docker cp basic.tar.gz cli:/opt/gopath/src/github.com/hyperledger/fabric/peer/
+# chaincode/packaging/basic.tar.gz
+docker cp chaincode/packaging/basic.tar.gz cli:/opt/gopath/src/github.com/hyperledger/fabric/peer/
 
 # Run deployment script
 docker exec cli ./scripts/deploy-caas.sh

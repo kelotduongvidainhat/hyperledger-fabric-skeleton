@@ -15,12 +15,13 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-export const fetchAssets = async (id = '') => {
-    if (id) {
-        const response = await api.get(`/assets/${id}`);
-        return response.data;
-    }
+export const fetchAssets = async () => {
     const response = await api.get('/assets');
+    return response.data;
+};
+
+export const fetchAssetById = async (id) => {
+    const response = await api.get(`/assets/${id}`);
     return response.data;
 };
 
@@ -36,6 +37,11 @@ export const proposeTransfer = async (id, targetUser) => {
 
 export const acceptTransfer = async (id) => {
     const response = await api.post(`/assets/${id}/accept`);
+    return response.data;
+};
+
+export const updateAssetView = async (id, view) => {
+    const response = await api.post(`/assets/${id}/view`, { view });
     return response.data;
 };
 

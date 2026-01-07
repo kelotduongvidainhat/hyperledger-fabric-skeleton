@@ -80,19 +80,19 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		role = user.Role
 	}
 
-	// 4. Generate JWT
-	token, err = auth.GenerateToken(req.Username, role)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Token generation failed"})
-	}
-
-	// 5. Finalize Response Org
+	// 4. Finalize Response Org
 	orgResp := user.Org
 	if req.Username == "admin" {
 		orgResp = "Org1MSP" // Default admin org
 		if finalCfg.MSPID != "" {
 			orgResp = finalCfg.MSPID
 		}
+	}
+
+	// 5. Generate JWT
+	token, err = auth.GenerateToken(req.Username, role, orgResp)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Token generation failed"})
 	}
 
 	return c.JSON(fiber.Map{

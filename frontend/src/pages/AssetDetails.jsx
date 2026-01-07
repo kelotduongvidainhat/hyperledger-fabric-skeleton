@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { fetchAssets, fetchHistory, proposeTransfer, acceptTransfer } from '../api/client';
-import { ArrowLeft, ArrowRight, CheckCircle, Shield, History } from 'lucide-react';
+import { fetchAssets, fetchAssetById, fetchHistory, proposeTransfer, acceptTransfer, updateAssetView } from '../api/client';
+import { ArrowLeft, ArrowRight, CheckCircle, Shield, History, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const AssetDetails = () => {
@@ -26,7 +26,7 @@ const AssetDetails = () => {
 
     const loadData = async () => {
         try {
-            const [a, h] = await Promise.all([fetchAssets(id), fetchHistory(id)]);
+            const [a, h] = await Promise.all([fetchAssetById(id), fetchHistory(id)]);
             setAsset(a);
             setHistory(h);
         } catch (err) {
@@ -54,6 +54,18 @@ const AssetDetails = () => {
         setActionLoading(true);
         try {
             await acceptTransfer(id);
+            await loadData();
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleUpdateView = async (newView) => {
+        setActionLoading(true);
+        try {
+            await updateAssetView(id, newView);
             await loadData();
         } catch (err) {
             alert(err.message);
@@ -136,6 +148,31 @@ const AssetDetails = () => {
 
                     {!isOwner && !isProposedRecipient && !isPendingTransfer && (
                         <p className="text-sm text-ink-900/40 italic">You do not have administrative rights over this artifact.</p>
+                    )}
+
+                    {isOwner && (
+                        <div className="mt-6 pt-6 border-t border-ink-900/10 space-y-3">
+                            <label className="text-xs font-bold uppercase text-ink-900/40">Visibility Control</label>
+                            <button
+                                onClick={() => handleUpdateView(asset.View?.toUpperCase() === 'PUBLIC' ? 'PRIVATE' : 'PUBLIC')}
+                                disabled={actionLoading}
+                                className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-bold rounded border transition-all 
+                                    ${asset.View?.toUpperCase() === 'PUBLIC'
+                                        ? 'bg-parchment-50 text-ink-800 border-ink-900/20 hover:bg-ink-900 hover:text-white hover:border-ink-900'
+                                        : 'bg-ink-900 text-white border-ink-900 hover:bg-ink-800'}`}
+                            >
+                                {asset.View?.toUpperCase() === 'PUBLIC' ? (
+                                    <><EyeOff className="w-4 h-4" /> Make Private</>
+                                ) : (
+                                    <><Eye className="w-4 h-4" /> Make Public</>
+                                )}
+                            </button>
+                            <p className="text-[10px] text-ink-900/40 text-center">
+                                {asset.View?.toUpperCase() === 'PUBLIC'
+                                    ? "Currently visible to all authenticated users."
+                                    : "Currently restricted to owner and administrators."}
+                            </p>
+                        </div>
                     )}
                 </div>
             </div>

@@ -19,9 +19,11 @@ This roadmap outlines the future development and milestones for the Ownership Re
     - [x] Dedicated route `/admin` for system oversight.
     - [x] Identity Audit page (CA identities + Mock DB profiles).
     - [x] Global Inventory page with Source switcher and Manual Sync.
-- [x] **UI/UX Enhancements**:
+- [x] **UI/UX Enhancements & Privacy**:
     - [x] Dynamic navigation ("Back to Assets" vs "Back to Registry").
     - [x] Loading/Syncing indicators and visual status badges.
+    - [x] Split Discovery Gallery from Personal Management Dashboard.
+    - [x] Implementation of Backend Privacy Filtering (PUBLIC/PRIVATE tiers).
 
 ## Phase 3: Advanced Features (Short Term)
 - [ ] **IPFS Integration**: 

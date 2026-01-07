@@ -151,10 +151,17 @@ func main() {
 	api.Get("/", func(c *fiber.Ctx) error {
 		role := c.Locals("role").(string)
 
-		// Force database for non-admins
+		// Non-admins: Filtered Database view
 		if role != "admin" {
+			username := c.Locals("user").(string)
+			org := c.Locals("org").(string)
+			fullID := fmt.Sprintf("%s::%s", org, username)
+
 			var assets []models.Asset
-			if err := database.Find(&assets).Error; err != nil {
+			// Logic: Show if PUBLIC OR if Owner is the current user
+			// We use UPPER(view) for robustness against legacy data
+			err := database.Where("UPPER(view) = 'PUBLIC' OR owner_id = ?", fullID).Find(&assets).Error
+			if err != nil {
 				return c.Status(500).SendString("Database error: " + err.Error())
 			}
 			return c.JSON(assets)
@@ -205,11 +212,25 @@ func main() {
 		id := c.Params("id")
 		role := c.Locals("role").(string)
 
+		// Non-admins: Filtered Database view
 		if role != "admin" {
+			username := c.Locals("user").(string)
+			org := c.Locals("org").(string)
+			fullID := fmt.Sprintf("%s::%s", org, username)
+
 			var asset models.Asset
 			if err := database.Where("id = ?", id).First(&asset).Error; err != nil {
-				return c.Status(404).JSON(fiber.Map{"error": "Asset not found in off-chain database"})
+				return c.Status(404).JSON(fiber.Map{"error": "Asset not found"})
 			}
+
+			// Privacy Check: Restricted if PRIVATE and Not Owner
+			isPublic := strings.ToUpper(asset.View) == "PUBLIC"
+			isOwner := asset.OwnerID == fullID
+
+			if !isPublic && !isOwner {
+				return c.Status(403).JSON(fiber.Map{"error": "This artifact is PRIVATE and restricted to the owner."})
+			}
+
 			return c.JSON(asset)
 		}
 
@@ -227,11 +248,23 @@ func main() {
 	})
 
 	api.Get("/:id/history", func(c *fiber.Ctx) error {
-		if c.Locals("role") != "admin" {
-			return c.Status(403).JSON(fiber.Map{"error": "Provenance history is restricted to Administrators."})
+		id := c.Params("id")
+		role := c.Locals("role").(string)
+		username := c.Locals("user").(string)
+		org := c.Locals("org").(string)
+		fullID := fmt.Sprintf("%s::%s", org, username)
+
+		// Access check: Admin OR Owner
+		if role != "admin" {
+			var asset models.Asset
+			if err := database.Where("id = ?", id).First(&asset).Error; err != nil {
+				return c.Status(404).JSON(fiber.Map{"error": "Asset not found"})
+			}
+			if asset.OwnerID != fullID {
+				return c.Status(403).JSON(fiber.Map{"error": "Provenance history is restricted to the owner or administrators."})
+			}
 		}
 
-		id := c.Params("id")
 		gw, contract, err := getContract(c)
 		if err != nil {
 			return c.Status(401).SendString(err.Error())
@@ -243,6 +276,37 @@ func main() {
 			return c.Status(500).SendString(err.Error())
 		}
 		return c.Type("json").Send(result)
+	})
+
+	api.Post("/:id/view", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		type ViewReq struct {
+			View string `json:"view"` // Public, Private
+		}
+		req := new(ViewReq)
+		if err := c.BodyParser(req); err != nil {
+			return c.Status(400).SendString(err.Error())
+		}
+
+		gw, contract, err := getContract(c)
+		if err != nil {
+			return c.Status(401).SendString(err.Error())
+		}
+		defer gw.Close()
+
+		_, err = contract.SubmitTransaction("UpdateAssetView", id, req.View)
+		if err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+
+		// Update in DB
+		var asset models.Asset
+		if err := database.Where("id = ?", id).First(&asset).Error; err == nil {
+			asset.View = req.View
+			database.Save(&asset)
+		}
+
+		return c.SendString("Asset Visibility Updated to " + req.View)
 	})
 
 	api.Post("/:id/transfer", func(c *fiber.Ctx) error {

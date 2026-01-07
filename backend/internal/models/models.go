@@ -29,3 +29,13 @@ type Asset struct {
 	ProposedOwnerID string    `json:"ProposedOwnerID"`
 	View            string    `json:"View"`
 }
+
+type HistoryRecord struct {
+	TxId       string    `json:"TxId"`
+	Timestamp  time.Time `json:"Timestamp"`
+	ActorID    string    `json:"ActorID"`
+	ActionType string    `json:"ActionType"`
+	Value      *Asset    `json:"Value"`
+	IsDelete   bool      `json:"IsDelete"`
+}
+

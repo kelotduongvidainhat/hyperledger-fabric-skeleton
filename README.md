@@ -63,11 +63,12 @@ Once complete:
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common fixes
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Moving to production
 
-## 🔄 Recent Updates (Multi-Org & Ownership Refactor)
-- **Multi-Org Support:** Fully integrated Org1 and Org2 with separate CAs and cross-org asset transfers.
-- **Enhanced Identification:** Ownership records now use the `OrgMSP::Username` format for global uniqueness.
-- **Automated Transfer Lookup:** Backend automatically resolves usernames to full blockchain identifiers.
-- **UI Refinements:** Admin dashboard now supports multi-org identity auditing with organization badges.
+## 🔄 Recent Updates (Privacy & UI Specialization)
+- **Privacy Filtering:** Backend now enforces strict visibility rules. Non-admins can only see `PUBLIC` assets or those they own.
+- **Gallery vs. Collection:** Frontend split into a global **Public Gallery** (database-driven discovery) and a personal **My Collection** (management workspace).
+- **Read-Only Detail Pages:** Specialized `/gallery/:id` route for browsing public artifacts without management overhead.
+- **Enhanced JWT Identity:** Token now includes user organization for robust cross-layer identity verification.
+- **Standardized Visibility:** Unified all asset visibility to uppercase `PUBLIC` and `PRIVATE` constants across Chaincode, Backend, and Frontend.
 
 ## License
 MIT

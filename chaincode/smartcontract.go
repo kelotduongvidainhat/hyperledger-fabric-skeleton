@@ -9,6 +9,35 @@ import (
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
+const (
+	InitActorID = "Init"
+	EmptyTxt    = ""
+)
+
+// Constants for asset status
+const (
+	ActiveStatus          = "ACTIVE"
+	FrozenStatus          = "FROZEN"
+	DeletedStatus         = "DELETED"
+	PendingTransferStatus = "PENDING_TRANSFER"
+)
+
+// Constants for asset view
+const (
+	PublicView  = "PUBLIC"
+	PrivateView = "PRIVATE"
+)
+
+// Constants for action type
+const (
+	InitActionType        = "INIT"
+	CreateActionType      = "CREATE"
+	UpdateActionType      = "UPDATE"
+	DeleteActionType      = "DELETE"
+	TransferProposeActionType = "TRANSFER_PROPOSE"
+	TransferAcceptOrCreateActionType = "TRANSFER_ACCEPT_OR_CREATE"
+)
+
 // SmartContract provides functions for managing an Asset
 type SmartContract struct {
 	contractapi.Contract
@@ -26,7 +55,7 @@ type Asset struct {
 	ImageURL        string `json:"ImageURL"`
 	ImageHash       string `json:"ImageHash"`
 	Status          string `json:"Status"` // ACTIVE, FROZEN, DELETED, PENDING_TRANSFER
-	View            string `json:"View"`
+	View            string `json:"View"` // PUBLIC, PRIVATE
 	LastUpdatedBy   string `json:"LastUpdatedBy"`
 	LastUpdatedAt   string `json:"LastUpdatedAt"`
 }
@@ -47,7 +76,7 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
 	assets := []Asset{
-		{ID: "asset1", Name: "Genesis Asset", Description: "First Asset", OwnerID: "Org1MSP::admin", Status: "ACTIVE", View: "Public", LastUpdatedBy: "Init", LastUpdatedAt: now},
+		{ID: "asset1", Name: "Genesis Asset", Description: "First Asset", OwnerID: "Org1MSP::admin", Status: ActiveStatus, View: PublicView, LastUpdatedBy: "Init", LastUpdatedAt: now},
 	}
 
 	for _, asset := range assets {
@@ -76,16 +105,16 @@ func (s *SmartContract) getClientFullIdentifier(ctx contractapi.TransactionConte
 	username, found, _ := ctx.GetClientIdentity().GetAttributeValue("hf.EnrollmentID")
 	
 	// 3. Fallback: Nếu không thấy EnrollmentID, lấy CommonName (CN) từ Certificate Subject
-	if !found || username == "" {
+	if !found || username == EmptyTxt {
 		cert, err := ctx.GetClientIdentity().GetX509Certificate()
 		if err != nil {
-			return "", fmt.Errorf("failed to get certificate: %v", err)
+			return EmptyTxt, fmt.Errorf("failed to get certificate: %v", err)
 		}
 		username = cert.Subject.CommonName
 	}
 
 	// 4. Kiểm tra cuối cùng nếu vẫn trống
-	if username == "" {
+	if username == EmptyTxt {
 		return mspid + "::unknown_identity", nil
 	}
 
@@ -115,10 +144,10 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 		Name:            name,
 		Description:     description,
 		OwnerID:         clientFullID,
-		ProposedOwnerID: "",
+		ProposedOwnerID: EmptyTxt,
 		ImageURL:        imageURL,
 		ImageHash:       imageHash,
-		Status:          "ACTIVE",
+		Status:          ActiveStatus,
 		View:            view,
 		LastUpdatedBy:   clientFullID,
 		LastUpdatedAt:   now,
@@ -162,14 +191,14 @@ func (s *SmartContract) ProposeTransfer(ctx contractapi.TransactionContextInterf
 	if asset.OwnerID != clientFullID {
 		return fmt.Errorf("only the owner can propose a transfer (current owner: %s, you: %s)", asset.OwnerID, clientFullID)
 	}
-	if asset.Status != "ACTIVE" {
-		return fmt.Errorf("asset is not ACTIVE")
+	if asset.Status != ActiveStatus {
+		return fmt.Errorf("asset is not %s", ActiveStatus)
 	}
 
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
-	asset.Status = "PENDING_TRANSFER"
+	asset.Status = PendingTransferStatus
 	asset.ProposedOwnerID = newOwnerID
 	asset.LastUpdatedBy = clientFullID
 	asset.LastUpdatedAt = now
@@ -194,8 +223,8 @@ func (s *SmartContract) AcceptTransfer(ctx contractapi.TransactionContextInterfa
 		return err
 	}
 
-	if asset.Status != "PENDING_TRANSFER" {
-		return fmt.Errorf("asset is not in PENDING_TRANSFER state")
+	if asset.Status != PendingTransferStatus {
+		return fmt.Errorf("asset is not in %s state", PendingTransferStatus)
 	}
 	if asset.ProposedOwnerID != clientFullID {
 		return fmt.Errorf("you are not the proposed owner (expected: %s, you: %s)", asset.ProposedOwnerID, clientFullID)
@@ -206,7 +235,7 @@ func (s *SmartContract) AcceptTransfer(ctx contractapi.TransactionContextInterfa
 
 	asset.OwnerID = asset.ProposedOwnerID
 	asset.ProposedOwnerID = ""
-	asset.Status = "ACTIVE"
+	asset.Status = ActiveStatus
 	asset.LastUpdatedBy = clientFullID
 	asset.LastUpdatedAt = now
 
@@ -259,6 +288,42 @@ func (s *SmartContract) UpdateAssetStatus(ctx contractapi.TransactionContextInte
 	return ctx.GetStub().PutState(id, assetJSON)
 }
 
+// UpdateAssetView allows the owner to change the visibility of an asset (Public, Private)
+func (s *SmartContract) UpdateAssetView(ctx contractapi.TransactionContextInterface, id string, newView string) error {
+	asset, err := s.ReadAsset(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	clientFullID, err := s.getClientFullIdentifier(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Only owner can change view
+	if asset.OwnerID != clientFullID {
+		return fmt.Errorf("only the owner can change asset visibility (current owner: %s, you: %s)", asset.OwnerID, clientFullID)
+	}
+
+	if newView != PublicView && newView != PrivateView {
+		return fmt.Errorf("invalid view status (expected %s or %s, got: %s)", PublicView, PrivateView, newView)
+	}
+
+	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
+	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
+
+	asset.View = newView
+	asset.LastUpdatedBy = clientFullID
+	asset.LastUpdatedAt = now
+
+	assetJSON, err := json.Marshal(asset)
+	if err != nil {
+		return err
+	}
+
+	return ctx.GetStub().PutState(id, assetJSON)
+}
+
 // AssetExists returns true when asset with given ID exists in world state
 func (s *SmartContract) AssetExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
 	assetJSON, err := ctx.GetStub().GetState(id)
@@ -293,16 +358,16 @@ func (s *SmartContract) GetAssetHistory(ctx contractapi.TransactionContextInterf
 		}
 
 		// Determine Action Type based on status changes (heuristic)
-		actionType := "UPDATE"
+		actionType := UpdateActionType
 		if response.IsDelete {
-			actionType = "DELETE"
-		} else if asset.LastUpdatedBy == "Init" {
-			actionType = "INIT"
-		} else if asset.Status == "PENDING_TRANSFER" {
-			actionType = "TRANSFER_PROPOSE"
-		} else if asset.Status == "ACTIVE" && asset.LastUpdatedBy == asset.OwnerID {
+			actionType = DeleteActionType
+		} else if asset.LastUpdatedBy == InitActorID {
+			actionType = InitActionType
+		} else if asset.Status == PendingTransferStatus {
+			actionType = TransferProposeActionType
+		} else if asset.Status == ActiveStatus && asset.LastUpdatedBy == asset.OwnerID {
 			// This logic is simple; real world might store ActionType in the asset or use events
-			actionType = "TRANSFER_ACCEPT_OR_CREATE" 
+			actionType = TransferAcceptOrCreateActionType 
 		}
 
 		record := HistoryRecord{

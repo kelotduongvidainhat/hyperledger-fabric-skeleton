@@ -1,4 +1,4 @@
-import { Scroll, Feather } from 'lucide-react';
+import { Scroll, Feather, Globe, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -23,9 +23,13 @@ const Layout = ({ children }) => {
 
                         {/* Nav */}
                         <nav className="flex gap-8 items-center">
-                            <div className="flex gap-4 text-sm font-bold uppercase tracking-widest text-ink-800/70">
-                                <Link to="/" className="hover:text-bronze transition-colors">Registry</Link>
-                                <Link to="/create" className="hover:text-bronze transition-colors">Add Asset</Link>
+                            <div className="flex gap-6 text-sm font-bold uppercase tracking-widest text-ink-800/70">
+                                <Link to="/" className="flex items-center gap-2 hover:text-bronze transition-colors">
+                                    <User className="w-4 h-4" /> Collection
+                                </Link>
+                                <Link to="/gallery" className="flex items-center gap-2 hover:text-bronze transition-colors">
+                                    <Globe className="w-4 h-4" /> Gallery
+                                </Link>
                                 {role === 'admin' && (
                                     <Link to="/admin" className="text-wax-red hover:text-red-700 transition-colors">Admin Console</Link>
                                 )}

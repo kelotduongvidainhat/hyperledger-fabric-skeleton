@@ -28,7 +28,7 @@ erDiagram
         string ImageURL "Link to external file"
         string ImageHash "Integrity Check (SHA256/IPFS)"
         enum Status "ACTIVE | FROZEN | DELETED | PENDING_TRANSFER"
-        string View "Public | [UserID, ...]"
+        enum View "PUBLIC | PRIVATE"
         string LastUpdatedBy "UserID of modifier (or _ADMIN)"
         timestamp LastUpdatedAt "Time of modification (Deterministic)"
     }
@@ -50,7 +50,7 @@ erDiagram
   "ImageURL": "https://storage.example.com/asset101.jpg",
   "ImageHash": "e3b0c44298fc1c149afbf...",
   "Status": "ACTIVE", 
-  "View": "Public",
+  "View": "PUBLIC",
   "LastUpdatedBy": "Org1MSP::charlie",
   "LastUpdatedAt": "2023-01-01T12:00:00Z"
 }
@@ -65,8 +65,8 @@ erDiagram
 - `DELETED`: Asset is burned/revoked. No further actions allowed.
 
 #### View (Access Control)
-- `Public`: Visible to everyone in the system.
-- `[user1, user2]`: RESTRICTED. Visible only to the Owner + listed participants.
+- `PUBLIC`: Publicly visible to all authenticated users in the Discovery Gallery.
+- `PRIVATE`: Restricted access. Visible ONLY to the Asset Owner and System Administrators.
 
 ## 3. Off-Chain Schema (PostgreSQL)
 
@@ -157,6 +157,18 @@ Hyperledger Fabric automatically maintains a history of all key-value updates.
 - **Profile (Off-Chain)**: The `User` model in PostgreSQL stores `Username`, `Org`, `Email`, `Role`.
 - **Mapping**: The Application Backend maps the current logged-in user to their organization via the PostgreSQL database to automate the construction of the full `OrgMSP::Username` identifier for blockchain transactions (e.g., during transfers).
 - **Synchronization**: A manual/automatic **Sync Worker** backfills the PostgreSQL database from the Blockchain World State to ensure high-performance administrative queries while maintaining the Ledger as the single source of truth.
+
+### 9. Privacy Enforcement (Backend API)
+
+The Backend API enforces strict visibility filtering to ensure data isolation between users.
+
+1.  **Administrative Access**: Users with the `admin` role can retrieve all assets regardless of their `View` setting.
+2.  **Standard User Retrieval**: 
+    - **Listings**: Filters database queries to return only records where `View = 'PUBLIC'` OR `OwnerID = currentUser`.
+    - **Detail Access**: Performs an runtime check. If an asset is `PRIVATE` and not owned by the requester, a `403 Forbidden` is returned.
+3.  **UI Isolation**: The frontend utilizes two distinct detail paths:
+    - `/gallery/:id`: Read-only discovery view powered by the database.
+    - `/assets/:id`: Management console for owners/admins.
 
 ## 8. Workflows
 

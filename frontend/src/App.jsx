@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import Gallery from './pages/Gallery';
+import GalleryAssetDetails from './pages/GalleryAssetDetails';
 import CreateAsset from './pages/CreateAsset';
 import AssetDetails from './pages/AssetDetails';
 import Login from './pages/Login';
@@ -50,6 +52,22 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/gallery" element={
+            <ProtectedRoute>
+              <Layout>
+                <Gallery />
+              </Layout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/gallery/:id" element={
+            <ProtectedRoute>
+              <Layout>
+                <GalleryAssetDetails />
               </Layout>
             </ProtectedRoute>
           } />
