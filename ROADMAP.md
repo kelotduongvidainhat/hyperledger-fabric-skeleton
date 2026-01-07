@@ -26,10 +26,10 @@ This roadmap outlines the future development and milestones for the Ownership Re
     - [x] Implementation of Backend Privacy Filtering (PUBLIC/PRIVATE tiers).
 
 ## Phase 3: Advanced Features (Short Term)
-- [ ] **IPFS Integration**: 
+- [X] **IPFS Integration**: 
     - [x] Transition to decentralized IPFS for robust, censorship-resistant storage.
-    - [ ] Backend: Implement file upload endpoint to push images to IPFS.
-    - [ ] Store the IPFS Content ID (CID) on-chain.
+    - [X] Backend: Implement file upload endpoint to push images to IPFS.
+    - [X] Store the IPFS Content ID (CID) on-chain.
     - [ ] **Long Term**: Integrate with Pinata/managed IPFS services for persistent pinning and better availability.
 - [x] **Role Management**:
     - [x] **Admin**: User Management (Approvals/Ban), Asset Status Override (Freeze/Revoke).

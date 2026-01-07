@@ -108,7 +108,9 @@ func main() {
 	}
 
 	// SETUP SERVER
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		BodyLimit: 10 * 1024 * 1024, // 10 MB
+	})
 	app.Use(cors.New())
 
 	// 3. START EVENTUAL CONSISTENCY LISTENER
