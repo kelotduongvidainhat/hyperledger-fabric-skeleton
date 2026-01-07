@@ -382,6 +382,48 @@ func (s *SmartContract) UpdateAssetView(ctx contractapi.TransactionContextInterf
 	return ctx.GetStub().PutState(id, valueJSON)
 }
 
+// DeleteAsset marks an asset as DELETED and restricts visibility (Soft Delete)
+func (s *SmartContract) DeleteAsset(ctx contractapi.TransactionContextInterface, id string) error {
+	value, err := s.ReadAsset(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	clientFullID, err := s.getClientFullIdentifier(ctx)
+	if err != nil {
+		return err
+	}
+
+	if value.Asset.OwnerID != clientFullID {
+		return fmt.Errorf("only the owner can delete this asset")
+	}
+
+	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
+	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
+
+	// Soft Delete: Mark as DELETED and hide from public discovery
+	value.Asset.Status = DeletedStatus
+	value.Asset.View = PrivateView
+	
+	value.Audit = AuditMetadata{
+		Action:    DeleteActionType,
+		Actor:     clientFullID,
+		Timestamp: now,
+	}
+
+	valueJSON, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	err = ctx.GetStub().SetEvent("DeleteAsset", valueJSON)
+	if err != nil {
+		return fmt.Errorf("failed to set event: %v", err)
+	}
+
+	return ctx.GetStub().PutState(id, valueJSON)
+}
+
 // AssetExists returns true when asset with given ID exists in world state
 func (s *SmartContract) AssetExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
 	assetJSON, err := ctx.GetStub().GetState(id)

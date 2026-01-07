@@ -28,12 +28,12 @@ const Gallery = () => {
 
     // Filter logic for "Public Gallery"
     const publicAssets = assets.filter(asset => {
-        return asset.View?.toUpperCase() === 'PUBLIC';
+        return asset.view?.toUpperCase() === 'PUBLIC';
     });
 
     const filteredAssets = publicAssets.filter(a =>
-        a.Name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.ID.toLowerCase().includes(searchTerm.toLowerCase())
+        a.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        a.ID?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (

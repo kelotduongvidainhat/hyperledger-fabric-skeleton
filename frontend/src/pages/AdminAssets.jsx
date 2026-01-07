@@ -171,24 +171,24 @@ const AdminAssets = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div>
-                                            <div className="font-serif font-bold text-ink-800">{asset.Name}</div>
+                                            <div className="font-serif font-bold text-ink-800">{asset.name}</div>
                                             <div className="text-[10px] text-ink-800/40 truncate max-w-[200px] italic">
-                                                {asset.Description || 'No description encrypted in record'}
+                                                {asset.description || 'No description encrypted in record'}
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-tight text-ink-800/60">
                                             <User size={12} className="text-bronze" />
-                                            {asset.OwnerID}
+                                            {asset.ownerId}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <StatusBadge status={asset.Status} />
+                                        <StatusBadge status={asset.status} />
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex justify-end items-center gap-3">
-                                            {asset.Status !== 'FROZEN' && asset.Status !== 'DELETED' && (
+                                            {asset.status !== 'FROZEN' && asset.status !== 'DELETED' && (
                                                 <button
                                                     onClick={() => handleUpdateStatus(asset.ID, 'FROZEN')}
                                                     disabled={syncing}
@@ -198,7 +198,7 @@ const AdminAssets = () => {
                                                     <Snowflake size={14} />
                                                 </button>
                                             )}
-                                            {asset.Status === 'FROZEN' && (
+                                            {asset.status === 'FROZEN' && (
                                                 <button
                                                     onClick={() => handleUpdateStatus(asset.ID, 'ACTIVE')}
                                                     disabled={syncing}
@@ -208,7 +208,7 @@ const AdminAssets = () => {
                                                     <CheckCircle size={14} />
                                                 </button>
                                             )}
-                                            {asset.Status !== 'DELETED' && (
+                                            {asset.status !== 'DELETED' && (
                                                 <button
                                                     onClick={() => handleUpdateStatus(asset.ID, 'DELETED')}
                                                     disabled={syncing}

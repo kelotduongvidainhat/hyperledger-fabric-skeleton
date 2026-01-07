@@ -45,6 +45,11 @@ export const updateAssetView = async (id, view) => {
     return response.data;
 };
 
+export const deleteAsset = async (id) => {
+    const response = await api.delete(`/assets/${id}`);
+    return response.data;
+};
+
 export const fetchHistory = async (id) => {
     const response = await api.get(`/assets/${id}/history`);
     return response.data;

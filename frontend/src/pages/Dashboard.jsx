@@ -32,28 +32,28 @@ const Dashboard = () => {
 
     // Filter logic for "My Collection"
     const myAssets = assets.filter(asset => {
-        const isOwner = asset.OwnerID === userFullID;
-        const isProposed = asset.ProposedOwnerID === userFullID;
+        const isOwner = asset.ownerId === userFullID;
+        const isProposed = asset.proposedOwnerId === userFullID;
         return isOwner || isProposed;
     });
 
     const applyViewFilter = (items) => {
         switch (viewFilter) {
             case 'owned':
-                return items.filter(a => a.OwnerID === userFullID && a.Status !== 'PENDING_TRANSFER');
+                return items.filter(a => a.ownerId === userFullID && a.status !== 'PENDING_TRANSFER');
             case 'pending':
-                return items.filter(a => a.Status === 'PENDING_TRANSFER' || a.Status === 'PENDING');
+                return items.filter(a => a.status === 'PENDING_TRANSFER' || a.status === 'PENDING');
             default:
                 return items;
         }
     };
 
     const filteredAssets = applyViewFilter(myAssets).filter(a =>
-        a.Name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.ID.toLowerCase().includes(searchTerm.toLowerCase())
+        a.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        a.ID?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const pendingCount = myAssets.filter(a => a.Status?.includes('PENDING')).length;
+    const pendingCount = myAssets.filter(a => a.status?.includes('PENDING')).length;
 
     return (
         <div className="space-y-8">

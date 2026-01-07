@@ -26,6 +26,7 @@ backend/wallet/
 vendor/
 go.sum
 pkg/
+backend/wallet/
 
 # Node.js (Frontend/Backend)
 node_modules/

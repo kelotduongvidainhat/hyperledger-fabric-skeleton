@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { fetchAssets, fetchAssetById, fetchHistory, proposeTransfer, acceptTransfer, updateAssetView } from '../api/client';
-import { ArrowLeft, ArrowRight, CheckCircle, Shield, History, Eye, EyeOff } from 'lucide-react';
+import { fetchAssets, fetchAssetById, fetchHistory, proposeTransfer, acceptTransfer, updateAssetView, deleteAsset } from '../api/client';
+import { ArrowLeft, ArrowRight, CheckCircle, Shield, History, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const AssetDetails = () => {
@@ -74,11 +74,26 @@ const AssetDetails = () => {
         }
     };
 
+    const handleDelete = async () => {
+        if (!window.confirm("Are you certain you wish to permanently delete this artifact from the ledger? This action is immutable.")) return;
+
+        setActionLoading(true);
+        try {
+            await deleteAsset(id);
+            alert("Artifact successfully purged.");
+            navigate(isFromAdmin ? "/admin/assets" : "/");
+        } catch (err) {
+            alert("Deletion failed: " + (err.response?.data || err.message));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     if (loading || !asset) return <div className="p-10 text-center">Loading...</div>;
 
-    const isOwner = asset.OwnerID === userFullID;
-    const isProposedRecipient = asset.ProposedOwnerID === userFullID;
-    const isPendingTransfer = asset.Status === 'PENDING_TRANSFER';
+    const isOwner = asset.ownerId === userFullID;
+    const isProposedRecipient = asset.proposedOwnerId === userFullID;
+    const isPendingTransfer = asset.status === 'PENDING_TRANSFER';
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -94,7 +109,7 @@ const AssetDetails = () => {
 
                 <div className="bg-white p-2 border border-ink-900/10 rounded-xl shadow-sm">
                     <div className="aspect-square bg-parchment-200 rounded-lg overflow-hidden">
-                        <img src={asset.ImageURL} className="w-full h-full object-cover grayscale-[20%] sepia-[10%]" />
+                        <img src={asset.imageUrl} className="w-full h-full object-cover grayscale-[20%] sepia-[10%]" />
                     </div>
                 </div>
 
@@ -102,7 +117,7 @@ const AssetDetails = () => {
                 <div className="bg-white p-6 rounded-xl border border-ink-900/10 shadow-sm">
                     <h3 className="font-serif font-bold text-lg mb-4 text-ink-900">Ownership Actions</h3>
 
-                    {isOwner && !isPendingTransfer && asset.Status === 'ACTIVE' && (
+                    {isOwner && !isPendingTransfer && asset.status === 'ACTIVE' && (
                         <div className="space-y-3">
                             <label className="text-xs font-bold uppercase text-ink-900/40">Propose Transfer</label>
                             <div className="flex gap-2">
@@ -130,7 +145,7 @@ const AssetDetails = () => {
                             <div className="text-xs text-ink-900/70 mb-3">
                                 {isProposedRecipient ?
                                     "You have been proposed as the new owner." :
-                                    `Proposed Recipient: ${asset.ProposedOwnerID}`
+                                    `Proposed Recipient: ${asset.proposedOwnerId}`
                                 }
                             </div>
 
@@ -154,24 +169,32 @@ const AssetDetails = () => {
                         <div className="mt-6 pt-6 border-t border-ink-900/10 space-y-3">
                             <label className="text-xs font-bold uppercase text-ink-900/40">Visibility Control</label>
                             <button
-                                onClick={() => handleUpdateView(asset.View?.toUpperCase() === 'PUBLIC' ? 'PRIVATE' : 'PUBLIC')}
+                                onClick={() => handleUpdateView(asset.view?.toUpperCase() === 'PUBLIC' ? 'PRIVATE' : 'PUBLIC')}
                                 disabled={actionLoading}
                                 className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-bold rounded border transition-all 
-                                    ${asset.View?.toUpperCase() === 'PUBLIC'
+                                    ${asset.view?.toUpperCase() === 'PUBLIC'
                                         ? 'bg-parchment-50 text-ink-800 border-ink-900/20 hover:bg-ink-900 hover:text-white hover:border-ink-900'
                                         : 'bg-ink-900 text-white border-ink-900 hover:bg-ink-800'}`}
                             >
-                                {asset.View?.toUpperCase() === 'PUBLIC' ? (
+                                {asset.view?.toUpperCase() === 'PUBLIC' ? (
                                     <><EyeOff className="w-4 h-4" /> Make Private</>
                                 ) : (
                                     <><Eye className="w-4 h-4" /> Make Public</>
                                 )}
                             </button>
                             <p className="text-[10px] text-ink-900/40 text-center">
-                                {asset.View?.toUpperCase() === 'PUBLIC'
+                                {asset.view?.toUpperCase() === 'PUBLIC'
                                     ? "Currently visible to all authenticated users."
                                     : "Currently restricted to owner and administrators."}
                             </p>
+
+                            <button
+                                onClick={handleDelete}
+                                disabled={actionLoading}
+                                className="w-full mt-4 py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-bold rounded border border-wax-red text-wax-red hover:bg-wax-red hover:text-white transition-all disabled:opacity-50"
+                            >
+                                <Trash2 className="w-4 h-4" /> Delete Artifact
+                            </button>
                         </div>
                     )}
                 </div>
@@ -182,19 +205,19 @@ const AssetDetails = () => {
                 <div>
                     <div className="flex justify-between items-start">
                         <div>
-                            <h1 className="text-4xl font-serif font-bold text-ink-900 mb-2">{asset.Name}</h1>
+                            <h1 className="text-4xl font-serif font-bold text-ink-900 mb-2">{asset.name}</h1>
                             <span className="font-mono text-sm bg-parchment-200 px-2 py-1 rounded text-ink-900/60">{asset.ID}</span>
                         </div>
                         <div className="text-right">
                             <div className="text-xs text-ink-900/40 uppercase tracking-widest mb-1">Current Owner</div>
                             <div className="flex items-center gap-2 font-bold text-lg text-ink-900">
                                 <Shield className="w-5 h-5 text-wax-red" />
-                                {asset.OwnerID}
+                                {asset.ownerId}
                             </div>
                         </div>
                     </div>
                     <p className="mt-6 text-lg text-ink-900/80 leading-relaxed font-serif">
-                        {asset.Description}
+                        {asset.description || 'No description provided.'}
                     </p>
                 </div>
 

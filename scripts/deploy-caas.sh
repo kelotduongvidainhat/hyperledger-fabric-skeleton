@@ -8,7 +8,7 @@ export VERBOSE=false
 # Chaincode details
 CC_NAME="basic"
 CC_VERSION="1.0"
-CC_SEQUENCE="1"
+CC_SEQUENCE="4"
 CHANNEL_NAME="mychannel"
 
 echo "🚀 Deploying Chaincode '$CC_NAME' (CaaS)..."
@@ -40,7 +40,7 @@ cd /opt/gopath/src/github.com/hyperledger/fabric/peer
 echo "💿 Installing chaincode on Org1..."
 setOrg1
 peer lifecycle chaincode install basic.tar.gz || true
-PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep ${CC_NAME}_${CC_VERSION} | awk -F "[, ]" '{print $3}')
+PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep ${CC_NAME}_${CC_VERSION} | tail -n 1 | awk -F "[, ]" '{print $3}')
 echo "   Package ID: $PACKAGE_ID"
 
 # 3. Install Chaincode (Org2)

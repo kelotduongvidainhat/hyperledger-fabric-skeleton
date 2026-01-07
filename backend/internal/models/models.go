@@ -18,18 +18,18 @@ type User struct {
 
 type Asset struct {
 	ID              string    `gorm:"primaryKey" json:"ID"`
-	Name            string    `json:"Name"`
-	OwnerID         string    `json:"OwnerID"`
-	Status          string    `json:"Status"`
-	Description     string    `json:"Description"`
-	ImageURL        string    `json:"ImageURL"`
-	ImageHash       string    `json:"ImageHash"`
-	ProposedOwnerID string    `json:"ProposedOwnerID"`
-	View            string    `json:"View"`
+	Name            string    `json:"name"`
+	Description     string    `json:"description"`
+	OwnerID         string    `json:"ownerId"`
+	ProposedOwnerID string    `json:"proposedOwnerId"`
+	ImageURL        string    `json:"imageUrl"`
+	ImageHash       string    `json:"imageHash"`
+	Status          string    `json:"status"`
+	View            string    `json:"view"`
 	// Metadata (Flattened for DB)
-	LastUpdatedBy string    `json:"LastUpdatedBy"`
-	LastUpdatedAt time.Time `json:"LastUpdatedAt"`
-	Action        string    `json:"Action"`
+	LastUpdatedBy string    `json:"lastUpdatedBy"`
+	LastUpdatedAt time.Time `json:"lastUpdatedAt"`
+	Action        string    `json:"action"`
 }
 
 type AuditMetadata struct {

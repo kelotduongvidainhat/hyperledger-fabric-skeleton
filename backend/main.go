@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -207,17 +208,20 @@ func main() {
 			return c.Type("json").Send(result)
 		}
 
-		var flattened []interface{}
+		var assets []models.Asset
 		for _, val := range ledgerValues {
-			assetMap := make(map[string]interface{})
-			b, _ := json.Marshal(val.Asset)
-			json.Unmarshal(b, &assetMap)
-			assetMap["Action"] = val.Audit.Action
-			assetMap["LastUpdatedBy"] = val.Audit.Actor
-			assetMap["LastUpdatedAt"] = val.Audit.Timestamp
-			flattened = append(flattened, assetMap)
+			asset := val.Asset
+			asset.Action = val.Audit.Action
+			asset.LastUpdatedBy = val.Audit.Actor
+			if val.Audit.Timestamp != "" {
+				t, err := time.Parse(time.RFC3339, val.Audit.Timestamp)
+				if err == nil {
+					asset.LastUpdatedAt = t
+				}
+			}
+			assets = append(assets, asset)
 		}
-		return c.JSON(flattened)
+		return c.JSON(assets)
 	})
 
 	api.Post("/", func(c *fiber.Ctx) error {
@@ -286,14 +290,17 @@ func main() {
 			return c.Type("json").Send(result)
 		}
 
-		assetMap := make(map[string]interface{})
-		b, _ := json.Marshal(val.Asset)
-		json.Unmarshal(b, &assetMap)
-		assetMap["Action"] = val.Audit.Action
-		assetMap["LastUpdatedBy"] = val.Audit.Actor
-		assetMap["LastUpdatedAt"] = val.Audit.Timestamp
+		asset := val.Asset
+		asset.Action = val.Audit.Action
+		asset.LastUpdatedBy = val.Audit.Actor
+		if val.Audit.Timestamp != "" {
+			t, err := time.Parse(time.RFC3339, val.Audit.Timestamp)
+			if err == nil {
+				asset.LastUpdatedAt = t
+			}
+		}
 
-		return c.JSON(assetMap)
+		return c.JSON(asset)
 	})
 
 	api.Get("/:id/history", func(c *fiber.Ctx) error {
@@ -444,6 +451,31 @@ func main() {
 		})
 
 		return c.SendString("Transfer Accepted")
+	})
+
+	api.Delete("/:id", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+
+		gw, contract, err := getContract(c)
+		if err != nil {
+			return c.Status(401).SendString(err.Error())
+		}
+		defer gw.Close()
+
+		_, err = contract.SubmitTransaction("DeleteAsset", id)
+		if err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+
+		// Soft Delete in DB to maintain consistency
+		var asset models.Asset
+		if err := database.Where("id = ?", id).First(&asset).Error; err == nil {
+			asset.Status = "DELETED"
+			asset.View = "PRIVATE"
+			database.Save(&asset)
+		}
+
+		return c.SendString("Asset Deleted")
 	})
 
 	// NOTIFICATIONS

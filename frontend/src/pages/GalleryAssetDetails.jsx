@@ -49,8 +49,8 @@ const GalleryAssetDetails = () => {
                         {/* Image Section */}
                         <div className="space-y-6">
                             <div className="aspect-square bg-parchment-200 rounded-2xl border border-ink-900/10 overflow-hidden shadow-sm flex items-center justify-center">
-                                {asset.ImageURL ? (
-                                    <img src={asset.ImageURL} alt={asset.Name} className="w-full h-full object-cover" />
+                                {asset.imageUrl ? (
+                                    <img src={asset.imageUrl} alt={asset.name} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="text-ink-900/20 text-6xl font-serif">?</div>
                                 )}
@@ -65,19 +65,19 @@ const GalleryAssetDetails = () => {
                                 </div>
                             </div>
 
-                            <h2 className="text-4xl font-serif text-ink-900 mb-4">{asset.Name}</h2>
-                            <p className="text-ink-900/60 leading-relaxed mb-8">{asset.Description}</p>
+                            <h2 className="text-4xl font-serif text-ink-900 mb-4">{asset.name}</h2>
+                            <p className="text-ink-900/60 leading-relaxed mb-8">{asset.description}</p>
 
                             <div className="space-y-4 bg-white p-6 rounded-xl border border-ink-900/10 shadow-sm">
                                 <div className="flex items-center justify-between py-2 border-b border-ink-900/5">
                                     <span className="text-xs font-bold uppercase text-ink-900/40">Registered Owner</span>
                                     <span className="text-sm font-medium flex items-center gap-2">
-                                        <User className="w-4 h-4 text-bronze" /> {asset.OwnerID}
+                                        <User className="w-4 h-4 text-bronze" /> {asset.ownerId}
                                     </span>
                                 </div>
                                 <div className="flex items-center justify-between py-2 border-b border-ink-900/5">
                                     <span className="text-xs font-bold uppercase text-ink-900/40">Status</span>
-                                    <span className="text-sm font-medium text-green-700">{asset.Status}</span>
+                                    <span className="text-sm font-medium text-green-700">{asset.status}</span>
                                 </div>
                                 <div className="flex items-center justify-between py-2">
                                     <span className="text-xs font-bold uppercase text-ink-900/40">Asset ID</span>
@@ -91,7 +91,7 @@ const GalleryAssetDetails = () => {
                                     <span className="text-[10px] font-bold uppercase">Cryptography Verification</span>
                                 </div>
                                 <div className="text-[10px] font-mono text-ink-900/60 break-all leading-tight">
-                                    SHA-256 Hash: {asset.ImageHash || 'VERIFIED_ON_CHAIN'}
+                                    SHA-256 Hash: {asset.imageHash || 'VERIFIED_ON_CHAIN'}
                                 </div>
                             </div>
                         </div>

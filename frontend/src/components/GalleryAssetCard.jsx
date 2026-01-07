@@ -7,8 +7,8 @@ const GalleryAssetCard = ({ asset }) => {
         <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-ink-900/10 overflow-hidden group flex flex-col h-full">
             {/* Image Area */}
             <div className="h-48 bg-parchment-200 relative overflow-hidden flex items-center justify-center">
-                {asset.ImageURL && !asset.ImageURL.includes('ipfs') ? (
-                    <img src={asset.ImageURL} alt={asset.Name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                {asset.imageUrl && !asset.imageUrl.includes('ipfs') ? (
+                    <img src={asset.imageUrl} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                     <div className="text-ink-900/20 text-4xl font-serif">?</div>
                 )}
@@ -23,16 +23,16 @@ const GalleryAssetCard = ({ asset }) => {
             {/* Content */}
             <div className="p-5 flex-grow">
                 <div className="flex justify-between items-start mb-3">
-                    <h3 className="font-serif text-lg font-bold text-ink-900 line-clamp-1" title={asset.Name}>
-                        {asset.Name}
+                    <h3 className="font-serif text-lg font-bold text-ink-900 line-clamp-1" title={asset.name}>
+                        {asset.name}
                     </h3>
                 </div>
 
                 <div className="space-y-3 mb-5">
                     <div className="flex items-center gap-2 text-ink-900/60">
                         <User className="w-4 h-4 text-ink-900/40" />
-                        <span className="text-xs truncate" title={asset.OwnerID}>
-                            Owned by <span className="font-bold">{asset.OwnerID?.split('::')[1] || 'Unknown'}</span>
+                        <span className="text-xs truncate" title={asset.ownerId}>
+                            Owned by <span className="font-bold">{asset.ownerId?.split('::')[1] || 'Unknown'}</span>
                         </span>
                     </div>
                 </div>
@@ -47,7 +47,7 @@ const GalleryAssetCard = ({ asset }) => {
                 <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" /> Published
                 </span>
-                <span>{new Date(asset.LastUpdatedAt).toLocaleDateString()}</span>
+                <span>{asset.lastUpdatedAt ? new Date(asset.lastUpdatedAt).toLocaleDateString() : 'N/A'}</span>
             </div>
         </div>
     );

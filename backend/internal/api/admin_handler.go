@@ -254,24 +254,23 @@ func (h *AdminHandler) GetAdminAssets(c *fiber.Ctx) error {
 	}
 
 	// Flatten for frontend compatibility
-	var flattened []interface{}
+	var assets []models.Asset
 	for _, val := range ledgerValues {
-		assetMap := make(map[string]interface{})
-		// Convert struct to map to easily merge
-		assetJSON, _ := json.Marshal(val.Asset)
-		json.Unmarshal(assetJSON, &assetMap)
-		
-		// Add audit info to the flat object so UI can use it
-		assetMap["Action"] = val.Audit.Action
-		assetMap["LastUpdatedBy"] = val.Audit.Actor
-		assetMap["LastUpdatedAt"] = val.Audit.Timestamp
-		
-		flattened = append(flattened, assetMap)
+		asset := val.Asset
+		asset.Action = val.Audit.Action
+		asset.LastUpdatedBy = val.Audit.Actor
+		if val.Audit.Timestamp != "" {
+			t, err := time.Parse(time.RFC3339, val.Audit.Timestamp)
+			if err == nil {
+				asset.LastUpdatedAt = t
+			}
+		}
+		assets = append(assets, asset)
 	}
 
 	return c.JSON(fiber.Map{
 		"source": "blockchain",
-		"assets": flattened,
+		"assets": assets,
 	})
 }
 
