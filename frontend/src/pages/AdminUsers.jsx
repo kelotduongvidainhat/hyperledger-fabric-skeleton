@@ -87,7 +87,7 @@ const AdminUsers = () => {
                     </thead>
                     <tbody className="divide-y divide-ink-800/5">
                         {currentIdentities.map((id) => (
-                            <tr key={id.name} className="hover:bg-parchment-50 transition-colors group">
+                            <tr key={`${id.org}_${id.name}`} className="hover:bg-parchment-50 transition-colors group">
                                 <td className="px-6 py-4">
                                     <div className="flex flex-col">
                                         <div className="flex items-center gap-2">

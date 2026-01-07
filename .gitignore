@@ -5,6 +5,7 @@ network/docker/volumes/
 *.tar.gz
 *.block
 *.tx
+*.pem
 
 
 # Binaries

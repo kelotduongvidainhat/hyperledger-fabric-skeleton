@@ -205,20 +205,20 @@ const AssetDetails = () => {
 
                     <div className="space-y-0 relative border-l-2 border-parchment-300 ml-3">
                         {history.map((record, idx) => (
-                            <div key={idx} className="relative pl-8 pb-8 last:pb-0">
+                            <div key={record.txId || idx} className="relative pl-8 pb-8 last:pb-0">
                                 <div className="absolute -left-[9px] top-0 w-4 h-4 bg-parchment-100 border-2 border-bronze rounded-full"></div>
                                 <div className="bg-white p-4 rounded-lg border border-ink-900/5 shadow-sm">
                                     <div className="flex justify-between items-start mb-1">
-                                        <span className="font-bold text-ink-900 text-sm">{record.ActionType.replace(/_/g, ' ')}</span>
+                                        <span className="font-bold text-ink-900 text-sm">{(record.actionType || 'UNKNOWN').replace(/_/g, ' ')}</span>
                                         <span className="text-xs text-ink-900/40 text-right">
-                                            {new Date(record.Timestamp).toLocaleString()}
+                                            {record.timestamp ? new Date(record.timestamp).toLocaleString() : 'N/A'}
                                         </span>
                                     </div>
                                     <div className="text-xs text-ink-900/60">
-                                        Actor: <span className="font-mono text-wax-red">{record.ActorID}</span>
+                                        Actor: <span className="font-mono text-wax-red">{record.actorId}</span>
                                     </div>
                                     <div className="text-[10px] font-mono text-ink-900/30 mt-2 truncate">
-                                        TX: {record.TxId}
+                                        TX: {record.txId}
                                     </div>
                                 </div>
                             </div>

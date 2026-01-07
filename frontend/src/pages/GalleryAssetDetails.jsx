@@ -106,17 +106,19 @@ const GalleryAssetDetails = () => {
 
                         <div className="relative border-l border-ink-900/10 ml-3 pl-8 space-y-10">
                             {history.length > 0 ? history.map((record, index) => (
-                                <div key={index} className="relative">
+                                <div key={record.txId || index} className="relative">
                                     <div className="absolute -left-[41px] top-1 w-4 h-4 rounded-full bg-parchment-50 border-2 border-ink-900 shadow-sm"></div>
                                     <div>
                                         <div className="flex items-center gap-3 mb-1">
-                                            <span className="text-xs font-bold uppercase text-wax-red">{record.ActionType.replace(/_/g, ' ')}</span>
+                                            <span className="text-xs font-bold uppercase text-wax-red">
+                                                {(record.actionType || 'UNKNOWN').replace(/_/g, ' ')}
+                                            </span>
                                             <span className="text-[10px] font-mono text-ink-900/40 flex items-center gap-1">
-                                                <Clock className="w-3 h-3" /> {new Date(record.Timestamp).toLocaleString()}
+                                                <Clock className="w-3 h-3" /> {record.timestamp ? new Date(record.timestamp).toLocaleString() : 'N/A'}
                                             </span>
                                         </div>
-                                        <p className="text-sm font-medium mb-1">Actor: {record.ActorID}</p>
-                                        <p className="text-[10px] font-mono text-ink-900/40 truncate" title={record.TxId}>Tx: {record.TxId}</p>
+                                        <p className="text-sm font-medium mb-1">Actor: {record.actorId || 'System'}</p>
+                                        <p className="text-[10px] font-mono text-ink-900/40 truncate" title={record.txId}>Tx: {record.txId}</p>
                                     </div>
                                 </div>
                             )) : (

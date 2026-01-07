@@ -118,7 +118,7 @@ const AdminDashboard = () => {
                     </div>
                     <div className="space-y-3">
                         {users.slice(0, 5).map((id) => (
-                            <div key={id.name} className="flex justify-between items-center p-4 bg-white/50 border border-ink-800/10 rounded hover:border-bronze transition-colors">
+                            <div key={`${id.org}_${id.name}`} className="flex justify-between items-center p-4 bg-white/50 border border-ink-800/10 rounded hover:border-bronze transition-colors">
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium tracking-tight text-ink-800">{id.name}</span>
