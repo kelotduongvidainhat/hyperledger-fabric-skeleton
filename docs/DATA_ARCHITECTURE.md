@@ -156,7 +156,9 @@ Hyperledger Fabric automatically maintains a history of all key-value updates.
   - **Reliability**: If `hf.EnrollmentID` is unavailable, it falls back to the certificate's **Common Name (CN)**.
 - **Profile (Off-Chain)**: The `User` model in PostgreSQL stores `Username`, `Org`, `Email`, `Role`.
 - **Mapping**: The Application Backend maps the current logged-in user to their organization via the PostgreSQL database to automate the construction of the full `OrgMSP::Username` identifier for blockchain transactions (e.g., during transfers).
-- **Synchronization**: A manual/automatic **Sync Worker** backfills the PostgreSQL database from the Blockchain World State to ensure high-performance administrative queries while maintaining the Ledger as the single source of truth.
+- **Mapping**: The Application Backend maps the current logged-in user to their organization via the PostgreSQL database to automate the construction of the full `OrgMSP::Username` identifier for blockchain transactions (e.g., during transfers).
+- **Synchronization**: A manual **Sync Ledger** mechanism is provided via the Admin Console to backfill the PostgreSQL database from the Blockchain World State. This ensures that even if events are missed, the off-chain cache can be refreshed to maintain high-performance administrative queries while the Ledger remains the single source of truth.
+- **Dual-Source Dashboard**: The Admin Dashboard utilizes a hybrid data strategy, fetching high-level stats from PostgreSQL while displaying a real-time feed of recent ledger activity directly from the Chaincode (`GetAllAssets`) for immediate oversight of new transactions.
 
 ### 9. Privacy Enforcement (Backend API)
 

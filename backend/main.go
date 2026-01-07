@@ -6,14 +6,16 @@ import (
 	"backend/internal/fabric"
 	"backend/internal/db"
 	"backend/internal/models"
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/hyperledger/fabric-gateway/pkg/client"
-	"strings"
 )
 
 func main() {
@@ -101,6 +103,26 @@ func main() {
 	app := fiber.New()
 	app.Use(cors.New())
 
+	// 3. START EVENTUAL CONSISTENCY LISTENER
+	// We use the Admin identity to listen for all events across the organization
+	go func() {
+		adminID, adminSign, err := fabric.GetIdentity("admin", walletPath)
+		if err != nil {
+			log.Printf("Listener Error: Could not load admin identity: %v", err)
+			return
+		}
+		
+		gw, err := fabric.CreateGateway(conn, adminID, adminSign)
+		if err != nil {
+			log.Printf("Listener Error: Could not connect to gateway: %v", err)
+			return
+		}
+		defer gw.Close()
+
+		network := gw.GetNetwork(cfg.ChannelName)
+		fabric.StartEventListener(context.Background(), network, database)
+	}()
+
 	// PUBLIC ROUTES
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("Ownership Registry API Running")
@@ -178,7 +200,24 @@ func main() {
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
-		return c.Type("json").Send(result)
+
+		var ledgerValues []models.LedgerValue
+		if err := json.Unmarshal(result, &ledgerValues); err != nil {
+			// Fallback
+			return c.Type("json").Send(result)
+		}
+
+		var flattened []interface{}
+		for _, val := range ledgerValues {
+			assetMap := make(map[string]interface{})
+			b, _ := json.Marshal(val.Asset)
+			json.Unmarshal(b, &assetMap)
+			assetMap["Action"] = val.Audit.Action
+			assetMap["LastUpdatedBy"] = val.Audit.Actor
+			assetMap["LastUpdatedAt"] = val.Audit.Timestamp
+			flattened = append(flattened, assetMap)
+		}
+		return c.JSON(flattened)
 	})
 
 	api.Post("/", func(c *fiber.Ctx) error {
@@ -223,14 +262,11 @@ func main() {
 				return c.Status(404).JSON(fiber.Map{"error": "Asset not found"})
 			}
 
-			// Privacy Check: Restricted if PRIVATE and Not Owner
+			// Privacy Check
 			isPublic := strings.ToUpper(asset.View) == "PUBLIC"
-			isOwner := asset.OwnerID == fullID
-
-			if !isPublic && !isOwner {
-				return c.Status(403).JSON(fiber.Map{"error": "This artifact is PRIVATE and restricted to the owner."})
+			if !isPublic && asset.OwnerID != fullID {
+				return c.Status(403).JSON(fiber.Map{"error": "Private asset access denied"})
 			}
-
 			return c.JSON(asset)
 		}
 
@@ -244,7 +280,20 @@ func main() {
 		if err != nil {
 			return c.Status(404).SendString(err.Error())
 		}
-		return c.Type("json").Send(result)
+
+		var val models.LedgerValue
+		if err := json.Unmarshal(result, &val); err != nil {
+			return c.Type("json").Send(result)
+		}
+
+		assetMap := make(map[string]interface{})
+		b, _ := json.Marshal(val.Asset)
+		json.Unmarshal(b, &assetMap)
+		assetMap["Action"] = val.Audit.Action
+		assetMap["LastUpdatedBy"] = val.Audit.Actor
+		assetMap["LastUpdatedAt"] = val.Audit.Timestamp
+
+		return c.JSON(assetMap)
 	})
 
 	api.Get("/:id/history", func(c *fiber.Ctx) error {
@@ -345,11 +394,31 @@ func main() {
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
+
+		// Create Notification for Target User
+		senderUsername := c.Locals("user").(string)
+		senderOrg := c.Locals("org").(string)
+		fullSenderID := fmt.Sprintf("%s::%s", senderOrg, senderUsername)
+
+		database.Create(&models.Notification{
+			UserID:  fullTargetID,
+			Title:   "Incoming Artifact Transfer",
+			Message: fmt.Sprintf("%s has proposed an artifact transfer: %s", fullSenderID, id),
+			Type:    "info",
+			Link:    fmt.Sprintf("/assets/%s", id),
+		})
+
 		return c.SendString("Transfer Proposed to " + fullTargetID)
 	})
 
 	api.Post("/:id/accept", func(c *fiber.Ctx) error {
 		id := c.Params("id")
+		
+		// Get Asset to know the current owner for notification
+		var asset models.Asset
+		database.Where("id = ?", id).First(&asset)
+		oldOwner := asset.OwnerID
+
 		gw, contract, err := getContract(c)
 		if err != nil {
 			return c.Status(401).SendString(err.Error())
@@ -360,7 +429,49 @@ func main() {
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
+
+		// Create Notification for Previous Owner
+		currentUsername := c.Locals("user").(string)
+		currentOrg := c.Locals("org").(string)
+		fullCurrentID := fmt.Sprintf("%s::%s", currentOrg, currentUsername)
+
+		database.Create(&models.Notification{
+			UserID:  oldOwner,
+			Title:   "Transfer Complete",
+			Message: fmt.Sprintf("%s has accepted the transfer of %s", fullCurrentID, id),
+			Type:    "success",
+			Link:    fmt.Sprintf("/gallery/%s", id),
+		})
+
 		return c.SendString("Transfer Accepted")
+	})
+
+	// NOTIFICATIONS
+	notifGroup := app.Group("/notifications", auth.Middleware())
+	notifGroup.Get("/", func(c *fiber.Ctx) error {
+		username := c.Locals("user").(string)
+		org := c.Locals("org").(string)
+		fullID := fmt.Sprintf("%s::%s", org, username)
+
+		var notifications []models.Notification
+		database.Where("user_id = ?", fullID).Order("created_at desc").Find(&notifications)
+		return c.JSON(notifications)
+	})
+
+	notifGroup.Post("/:id/read", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		username := c.Locals("user").(string)
+		org := c.Locals("org").(string)
+		fullID := fmt.Sprintf("%s::%s", org, username)
+
+		var notif models.Notification
+		if err := database.Where("id = ? AND user_id = ?", id, fullID).First(&notif).Error; err != nil {
+			return c.Status(404).SendString("Notification not found")
+		}
+
+		notif.IsRead = true
+		database.Save(&notif)
+		return c.SendString("Marked as read")
 	})
 
 	log.Println("Server running on port 3000")

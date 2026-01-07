@@ -32,10 +32,11 @@ const (
 const (
 	InitActionType        = "INIT"
 	CreateActionType      = "CREATE"
-	UpdateActionType      = "UPDATE"
+	UpdateStatusActionType = "UPDATE_STATUS"
+	UpdateViewActionType  = "UPDATE_VIEW"
 	DeleteActionType      = "DELETE"
 	TransferProposeActionType = "TRANSFER_PROPOSE"
-	TransferAcceptOrCreateActionType = "TRANSFER_ACCEPT_OR_CREATE"
+	TransferAcceptActionType  = "TRANSFER_ACCEPT"
 )
 
 // SmartContract provides functions for managing an Asset
@@ -43,31 +44,40 @@ type SmartContract struct {
 	contractapi.Contract
 }
 
-// Asset describes basic details of what makes up a simple asset
-// Insert struct field in alphabetic order to achieve determinism across languages
-// golang keeps the order when marshal to json but doesn't matter as much for this
+// Asset describes basic details of what makes up a simple asset (Lower-case tags for standard JSON)
 type Asset struct {
-	ID              string `json:"ID"`
-	Name            string `json:"Name"`
-	Description     string `json:"Description"`
-	OwnerID         string `json:"OwnerID"` // Org1MSP::username
-	ProposedOwnerID string `json:"ProposedOwnerID"` // Org1MSP::username
-	ImageURL        string `json:"ImageURL"`
-	ImageHash       string `json:"ImageHash"`
-	Status          string `json:"Status"` // ACTIVE, FROZEN, DELETED, PENDING_TRANSFER
-	View            string `json:"View"` // PUBLIC, PRIVATE
-	LastUpdatedBy   string `json:"LastUpdatedBy"`
-	LastUpdatedAt   string `json:"LastUpdatedAt"`
+	ID              string `json:"ID"` // Keep ID as ID for key consistency
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	OwnerID         string `json:"ownerId"` 
+	ProposedOwnerID string `json:"proposedOwnerId"`
+	ImageURL        string `json:"imageUrl"`
+	ImageHash       string `json:"imageHash"`
+	Status          string `json:"status"` 
+	View            string `json:"view"` 
+}
+
+// AuditMetadata contains the metadata for a state change
+type AuditMetadata struct {
+	Action    string `json:"action"`
+	Actor     string `json:"actor"`
+	Timestamp string `json:"timestamp"`
+}
+
+// LedgerValue is the wrapper for data stored on the blockchain
+type LedgerValue struct {
+	Asset Asset         `json:"asset"`
+	Audit AuditMetadata `json:"audit"`
 }
 
 // HistoryRecord structure for returning asset history
 type HistoryRecord struct {
-	TxId       string    `json:"TxId"`
-	Timestamp  time.Time `json:"Timestamp"`
-	ActorID    string    `json:"ActorID"`
-	ActionType string    `json:"ActionType"` // Custom action type
-	Value      *Asset    `json:"Value"`
-	IsDelete   bool      `json:"IsDelete"`
+	TxId       string    `json:"txId"`
+	Timestamp  time.Time `json:"timestamp"`
+	ActorID    string    `json:"actorId"`
+	ActionType string    `json:"actionType"`
+	Value      *Asset    `json:"value"`
+	IsDelete   bool      `json:"isDelete"`
 }
 
 // InitLedger adds a base set of assets to the ledger
@@ -75,36 +85,32 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
-	assets := []Asset{
-		{ID: "asset1", Name: "Genesis Asset", Description: "First Asset", OwnerID: "Org1MSP::admin", Status: ActiveStatus, View: PublicView, LastUpdatedBy: "Init", LastUpdatedAt: now},
+	asset := Asset{ID: "asset1", Name: "Genesis Asset", Description: "First Asset", OwnerID: "Org1MSP::admin", Status: ActiveStatus, View: PublicView}
+	
+	ledgerValue := LedgerValue{
+		Asset: asset,
+		Audit: AuditMetadata{
+			Action:    InitActionType,
+			Actor:     InitActorID,
+			Timestamp: now,
+		},
 	}
 
-	for _, asset := range assets {
-		assetJSON, err := json.Marshal(asset)
-		if err != nil {
-			return err
-		}
-
-		err = ctx.GetStub().PutState(asset.ID, assetJSON)
-		if err != nil {
-			return fmt.Errorf("failed to put to world state. %v", err)
-		}
+	valueJSON, err := json.Marshal(ledgerValue)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	return ctx.GetStub().PutState(asset.ID, valueJSON)
 }
 
 func (s *SmartContract) getClientFullIdentifier(ctx contractapi.TransactionContextInterface) (string, error) {
-	// 1. Lấy MSPID
 	mspid, err := ctx.GetClientIdentity().GetMSPID()
 	if err != nil {
 		return "", fmt.Errorf("failed to get MSPID: %v", err)
 	}
 
-	// 2. Thử lấy EnrollmentID (Dùng cho Fabric CA)
 	username, found, _ := ctx.GetClientIdentity().GetAttributeValue("hf.EnrollmentID")
-	
-	// 3. Fallback: Nếu không thấy EnrollmentID, lấy CommonName (CN) từ Certificate Subject
 	if !found || username == EmptyTxt {
 		cert, err := ctx.GetClientIdentity().GetX509Certificate()
 		if err != nil {
@@ -113,7 +119,6 @@ func (s *SmartContract) getClientFullIdentifier(ctx contractapi.TransactionConte
 		username = cert.Subject.CommonName
 	}
 
-	// 4. Kiểm tra cuối cùng nếu vẫn trống
 	if username == EmptyTxt {
 		return mspid + "::unknown_identity", nil
 	}
@@ -121,7 +126,7 @@ func (s *SmartContract) getClientFullIdentifier(ctx contractapi.TransactionConte
 	return fmt.Sprintf("%s::%s", mspid, username), nil
 }
 
-// CreateAsset issues a new asset to the world state with given details.
+// CreateAsset issues a new asset to the world state
 func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, name string, description string, imageURL string, imageHash string, view string) error {
 	exists, err := s.AssetExists(ctx, id)
 	if err != nil {
@@ -149,36 +154,60 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 		ImageHash:       imageHash,
 		Status:          ActiveStatus,
 		View:            view,
-		LastUpdatedBy:   clientFullID,
-		LastUpdatedAt:   now,
 	}
-	assetJSON, err := json.Marshal(asset)
+
+	ledgerValue := LedgerValue{
+		Asset: asset,
+		Audit: AuditMetadata{
+			Action:    CreateActionType,
+			Actor:     clientFullID,
+			Timestamp: now,
+		},
+	}
+
+	valueJSON, err := json.Marshal(ledgerValue)
 	if err != nil {
 		return err
 	}
 
-	return ctx.GetStub().PutState(id, assetJSON)
+	err = ctx.GetStub().SetEvent("CreateAsset", valueJSON)
+	if err != nil {
+		return fmt.Errorf("failed to set event: %v", err)
+	}
+
+	return ctx.GetStub().PutState(id, valueJSON)
 }
 
-func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, id string) (*Asset, error) {
-	assetJSON, err := ctx.GetStub().GetState(id)
+func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, id string) (*LedgerValue, error) {
+	valueJSON, err := ctx.GetStub().GetState(id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get asset: %v", err)
 	}
-	if assetJSON == nil {
+	if valueJSON == nil {
 		return nil, fmt.Errorf("asset %s does not exist", id)
 	}
-	var asset Asset
-	err = json.Unmarshal(assetJSON, &asset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal asset: %v", err)
+	var value LedgerValue
+	
+	var temp map[string]interface{}
+	json.Unmarshal(valueJSON, &temp)
+	
+	// Flexible check for "asset" or "Asset"
+	if _, ok := temp["asset"]; ok || temp["Asset"] != nil {
+		err = json.Unmarshal(valueJSON, &value)
+	} else {
+		// Legacy fallback
+		var asset Asset
+		json.Unmarshal(valueJSON, &asset)
+		value.Asset = asset
+		value.Audit = AuditMetadata{Action: "LEGACY", Actor: "Unknown", Timestamp: ""}
 	}
-	return &asset, nil
+	
+	return &value, nil
 }
 
 // ProposeTransfer initiates the Two-Factor Transfer workflow.
 func (s *SmartContract) ProposeTransfer(ctx contractapi.TransactionContextInterface, id string, newOwnerID string) error {
-	asset, err := s.ReadAsset(ctx, id)
+	value, err := s.ReadAsset(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -188,32 +217,41 @@ func (s *SmartContract) ProposeTransfer(ctx contractapi.TransactionContextInterf
 		return err
 	}
 
-	if asset.OwnerID != clientFullID {
-		return fmt.Errorf("only the owner can propose a transfer (current owner: %s, you: %s)", asset.OwnerID, clientFullID)
+	if value.Asset.OwnerID != clientFullID {
+		return fmt.Errorf("only the owner can propose a transfer")
 	}
-	if asset.Status != ActiveStatus {
-		return fmt.Errorf("asset is not %s", ActiveStatus)
+	if value.Asset.Status != ActiveStatus {
+		return fmt.Errorf("asset is not ACTIVE")
 	}
 
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
-	asset.Status = PendingTransferStatus
-	asset.ProposedOwnerID = newOwnerID
-	asset.LastUpdatedBy = clientFullID
-	asset.LastUpdatedAt = now
+	value.Asset.Status = PendingTransferStatus
+	value.Asset.ProposedOwnerID = newOwnerID
+	
+	value.Audit = AuditMetadata{
+		Action:    TransferProposeActionType,
+		Actor:     clientFullID,
+		Timestamp: now,
+	}
 
-	assetJSON, err := json.Marshal(asset)
+	valueJSON, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
 
-	return ctx.GetStub().PutState(id, assetJSON)
+	err = ctx.GetStub().SetEvent("ProposeTransfer", valueJSON)
+	if err != nil {
+		return fmt.Errorf("failed to set event: %v", err)
+	}
+
+	return ctx.GetStub().PutState(id, valueJSON)
 }
 
 // AcceptTransfer finalizes the Two-Factor Transfer workflow.
 func (s *SmartContract) AcceptTransfer(ctx contractapi.TransactionContextInterface, id string) error {
-	asset, err := s.ReadAsset(ctx, id)
+	value, err := s.ReadAsset(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -223,47 +261,52 @@ func (s *SmartContract) AcceptTransfer(ctx contractapi.TransactionContextInterfa
 		return err
 	}
 
-	if asset.Status != PendingTransferStatus {
-		return fmt.Errorf("asset is not in %s state", PendingTransferStatus)
+	if value.Asset.Status != PendingTransferStatus {
+		return fmt.Errorf("asset is not in PENDING_TRANSFER state")
 	}
-	if asset.ProposedOwnerID != clientFullID {
-		return fmt.Errorf("you are not the proposed owner (expected: %s, you: %s)", asset.ProposedOwnerID, clientFullID)
+	if value.Asset.ProposedOwnerID != clientFullID {
+		return fmt.Errorf("you are not the proposed owner")
 	}
 
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
-	asset.OwnerID = asset.ProposedOwnerID
-	asset.ProposedOwnerID = ""
-	asset.Status = ActiveStatus
-	asset.LastUpdatedBy = clientFullID
-	asset.LastUpdatedAt = now
+	value.Asset.OwnerID = value.Asset.ProposedOwnerID
+	value.Asset.ProposedOwnerID = ""
+	value.Asset.Status = ActiveStatus
+	
+	value.Audit = AuditMetadata{
+		Action:    TransferAcceptActionType,
+		Actor:     clientFullID,
+		Timestamp: now,
+	}
 
-	assetJSON, err := json.Marshal(asset)
+	valueJSON, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
 
-	return ctx.GetStub().PutState(id, assetJSON)
+	err = ctx.GetStub().SetEvent("AcceptTransfer", valueJSON)
+	if err != nil {
+		return fmt.Errorf("failed to set event: %v", err)
+	}
+
+	return ctx.GetStub().PutState(id, valueJSON)
 }
 
-// UpdateAssetStatus allows an authority to change the status of an asset (e.g., FROZEN, ACTIVE, DELETED)
+// UpdateAssetStatus allows an authority to change the status of an asset
 func (s *SmartContract) UpdateAssetStatus(ctx contractapi.TransactionContextInterface, id string, newStatus string) error {
-	// 1. SECURITY: Assert Admin status (using CID library)
-	// In production, users should be registered with an 'admin' attribute
-	// For this skeleton, we also allow the default Peer Admin (Org1MSP/Org2MSP)
 	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
 	if err != nil {
 		return err
 	}
 
-	// Dynamic check for admin attribute
 	isAdmin, found, _ := ctx.GetClientIdentity().GetAttributeValue("admin")
 	if (!found || isAdmin != "true") && clientMSPID != "Org1MSP" && clientMSPID != "Org2MSP" {
-		return fmt.Errorf("administrative access required for this operation")
+		return fmt.Errorf("administrative access required")
 	}
 
-	asset, err := s.ReadAsset(ctx, id)
+	value, err := s.ReadAsset(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -276,21 +319,29 @@ func (s *SmartContract) UpdateAssetStatus(ctx contractapi.TransactionContextInte
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
-	asset.Status = newStatus
-	asset.LastUpdatedBy = clientFullID + "_ADMIN"
-	asset.LastUpdatedAt = now
+	value.Asset.Status = newStatus
+	value.Audit = AuditMetadata{
+		Action:    UpdateStatusActionType,
+		Actor:     clientFullID + "_ADMIN",
+		Timestamp: now,
+	}
 
-	assetJSON, err := json.Marshal(asset)
+	valueJSON, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
 
-	return ctx.GetStub().PutState(id, assetJSON)
+	err = ctx.GetStub().SetEvent("UpdateAssetStatus", valueJSON)
+	if err != nil {
+		return fmt.Errorf("failed to set event: %v", err)
+	}
+
+	return ctx.GetStub().PutState(id, valueJSON)
 }
 
-// UpdateAssetView allows the owner to change the visibility of an asset (Public, Private)
+// UpdateAssetView allows the owner to change the visibility of an asset
 func (s *SmartContract) UpdateAssetView(ctx contractapi.TransactionContextInterface, id string, newView string) error {
-	asset, err := s.ReadAsset(ctx, id)
+	value, err := s.ReadAsset(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -300,28 +351,35 @@ func (s *SmartContract) UpdateAssetView(ctx contractapi.TransactionContextInterf
 		return err
 	}
 
-	// Only owner can change view
-	if asset.OwnerID != clientFullID {
-		return fmt.Errorf("only the owner can change asset visibility (current owner: %s, you: %s)", asset.OwnerID, clientFullID)
+	if value.Asset.OwnerID != clientFullID {
+		return fmt.Errorf("only the owner can change asset visibility")
 	}
 
 	if newView != PublicView && newView != PrivateView {
-		return fmt.Errorf("invalid view status (expected %s or %s, got: %s)", PublicView, PrivateView, newView)
+		return fmt.Errorf("invalid view status")
 	}
 
 	txTimestamp, _ := ctx.GetStub().GetTxTimestamp()
 	now := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos)).Format(time.RFC3339)
 
-	asset.View = newView
-	asset.LastUpdatedBy = clientFullID
-	asset.LastUpdatedAt = now
+	value.Asset.View = newView
+	value.Audit = AuditMetadata{
+		Action:    UpdateViewActionType,
+		Actor:     clientFullID,
+		Timestamp: now,
+	}
 
-	assetJSON, err := json.Marshal(asset)
+	valueJSON, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
 
-	return ctx.GetStub().PutState(id, assetJSON)
+	err = ctx.GetStub().SetEvent("UpdateAssetView", valueJSON)
+	if err != nil {
+		return fmt.Errorf("failed to set event: %v", err)
+	}
+
+	return ctx.GetStub().PutState(id, valueJSON)
 }
 
 // AssetExists returns true when asset with given ID exists in world state
@@ -349,35 +407,35 @@ func (s *SmartContract) GetAssetHistory(ctx contractapi.TransactionContextInterf
 			return nil, err
 		}
 
-		var asset Asset
+		var value LedgerValue
 		if len(response.Value) > 0 {
-			err = json.Unmarshal(response.Value, &asset)
-			if err != nil {
-				return nil, err
+			var temp map[string]interface{}
+			json.Unmarshal(response.Value, &temp)
+			
+			if _, ok := temp["asset"]; ok || temp["Asset"] != nil {
+				json.Unmarshal(response.Value, &value)
+			} else {
+				// Legacy data handling
+				var asset Asset
+				json.Unmarshal(response.Value, &asset)
+				value.Asset = asset
+				value.Audit = AuditMetadata{Action: "LEGACY", Actor: "Unknown"}
 			}
-		}
-
-		// Determine Action Type based on status changes (heuristic)
-		actionType := UpdateActionType
-		if response.IsDelete {
-			actionType = DeleteActionType
-		} else if asset.LastUpdatedBy == InitActorID {
-			actionType = InitActionType
-		} else if asset.Status == PendingTransferStatus {
-			actionType = TransferProposeActionType
-		} else if asset.Status == ActiveStatus && asset.LastUpdatedBy == asset.OwnerID {
-			// This logic is simple; real world might store ActionType in the asset or use events
-			actionType = TransferAcceptOrCreateActionType 
 		}
 
 		record := HistoryRecord{
 			TxId:       response.TxId,
 			Timestamp:  time.Unix(response.Timestamp.Seconds, int64(response.Timestamp.Nanos)),
-			ActorID:    asset.LastUpdatedBy, // We use the stored field for Who
-			ActionType: actionType,
-			Value:      &asset,
+			ActorID:    value.Audit.Actor,
+			ActionType: value.Audit.Action,
+			Value:      &value.Asset,
 			IsDelete:   response.IsDelete,
 		}
+		
+		if response.IsDelete {
+			record.ActionType = DeleteActionType
+		}
+
 		records = append(records, record)
 	}
 
@@ -385,30 +443,37 @@ func (s *SmartContract) GetAssetHistory(ctx contractapi.TransactionContextInterf
 }
 
 // GetAllAssets returns all assets found in world state
-func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface) ([]*Asset, error) {
-	// range query with empty string for startKey and endKey does an open-ended query of all assets in the chaincode namespace.
+func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface) ([]*LedgerValue, error) {
 	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
 	if err != nil {
 		return nil, err
 	}
 	defer resultsIterator.Close()
 
-	var assets []*Asset
+	var values []*LedgerValue
 	for resultsIterator.HasNext() {
 		queryResponse, err := resultsIterator.Next()
 		if err != nil {
 			return nil, err
 		}
 
-		var asset Asset
-		err = json.Unmarshal(queryResponse.Value, &asset)
-		if err != nil {
-			return nil, err
+		var value LedgerValue
+		var temp map[string]interface{}
+		json.Unmarshal(queryResponse.Value, &temp)
+		
+		if _, ok := temp["asset"]; ok || temp["Asset"] != nil {
+			json.Unmarshal(queryResponse.Value, &value)
+		} else {
+			var asset Asset
+			json.Unmarshal(queryResponse.Value, &asset)
+			value.Asset = asset
+			value.Audit = AuditMetadata{Action: "LEGACY", Actor: "Unknown"}
 		}
-		assets = append(assets, &asset)
+		
+		values = append(values, &value)
 	}
 
-	return assets, nil
+	return values, nil
 }
 
 func main() {

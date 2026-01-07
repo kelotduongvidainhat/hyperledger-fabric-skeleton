@@ -68,7 +68,7 @@ To prevent accidental transfers, the process requires two distinct transactions:
 
 ### Query & Provenance
 - `GetAssetHistory(id)`: Returns the full audit trail of the asset from the ledger's history database.
-- `GetAllAssets()`: Performs a range query to return all items.
+- `GetAllAssets()`: Performs a range query to return all items. This is used by the Admin Dashboard for real-time monitoring of the chaincode state.
 
 ---
 

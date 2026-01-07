@@ -7,6 +7,7 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/grpc"
@@ -38,12 +39,22 @@ type IdentityInfo struct {
 }
 
 func (h *AdminHandler) GetStats(c *fiber.Ctx) error {
-	// ... (Existing GetStats)
-	stats := NetworkStats{
-		TotalAssets:      42,
-		TotalOwners:      12,
-		PendingTransfers: 5,
-	}
+	var stats NetworkStats
+
+	// 1. Total Assets
+	var totalAssets int64
+	h.DB.Model(&models.Asset{}).Count(&totalAssets)
+	stats.TotalAssets = int(totalAssets)
+
+	// 2. Unique Owners
+	var totalOwners int64
+	h.DB.Model(&models.Asset{}).Distinct("owner_id").Count(&totalOwners)
+	stats.TotalOwners = int(totalOwners)
+
+	// 3. Pending Transfers (where ProposedOwnerID is not empty)
+	var pendingTransfers int64
+	h.DB.Model(&models.Asset{}).Where("proposed_owner_id != ''").Count(&pendingTransfers)
+	stats.PendingTransfers = int(pendingTransfers)
 
 	return c.JSON(stats)
 }
@@ -229,14 +240,38 @@ func (h *AdminHandler) GetAdminAssets(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var assets []interface{}
-	if err := json.Unmarshal(result, &assets); err != nil {
+	var ledgerValues []models.LedgerValue
+	if err := json.Unmarshal(result, &ledgerValues); err != nil {
+		// Fallback for legacy data that might be flat
+		var flatAssets []interface{}
+		if err := json.Unmarshal(result, &flatAssets); err == nil {
+			return c.JSON(fiber.Map{
+				"source": "blockchain",
+				"assets": flatAssets,
+			})
+		}
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to parse assets"})
+	}
+
+	// Flatten for frontend compatibility
+	var flattened []interface{}
+	for _, val := range ledgerValues {
+		assetMap := make(map[string]interface{})
+		// Convert struct to map to easily merge
+		assetJSON, _ := json.Marshal(val.Asset)
+		json.Unmarshal(assetJSON, &assetMap)
+		
+		// Add audit info to the flat object so UI can use it
+		assetMap["Action"] = val.Audit.Action
+		assetMap["LastUpdatedBy"] = val.Audit.Actor
+		assetMap["LastUpdatedAt"] = val.Audit.Timestamp
+		
+		flattened = append(flattened, assetMap)
 	}
 
 	return c.JSON(fiber.Map{
 		"source": "blockchain",
-		"assets": assets,
+		"assets": flattened,
 	})
 }
 
@@ -266,13 +301,30 @@ func (h *AdminHandler) Sync(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var ledgerAssets []models.Asset
-	if err := json.Unmarshal(result, &ledgerAssets); err != nil {
+	var ledgerValues []models.LedgerValue
+	if err := json.Unmarshal(result, &ledgerValues); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to parse ledger assets"})
 	}
 
 	// 2. Sync to Database
-	for _, asset := range ledgerAssets {
+	for _, val := range ledgerValues {
+		asset := val.Asset
+		
+		// Integrity check: If ID is empty, skip to prevent DB errors
+		if asset.ID == "" {
+			continue
+		}
+
+		asset.Action = val.Audit.Action
+		asset.LastUpdatedBy = val.Audit.Actor
+		
+		if val.Audit.Timestamp != "" {
+			t, err := time.Parse(time.RFC3339, val.Audit.Timestamp)
+			if err == nil {
+				asset.LastUpdatedAt = t
+			}
+		}
+
 		if err := h.DB.Save(&asset).Error; err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to sync asset to DB: " + err.Error()})
 		}
@@ -280,6 +332,6 @@ func (h *AdminHandler) Sync(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"message": "Synchronization complete",
-		"count":   len(ledgerAssets),
+		"count":   len(ledgerValues),
 	})
 }

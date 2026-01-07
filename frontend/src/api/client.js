@@ -50,4 +50,14 @@ export const fetchHistory = async (id) => {
     return response.data;
 };
 
+export const fetchNotifications = async () => {
+    const response = await api.get('/notifications');
+    return response.data;
+};
+
+export const markNotificationRead = async (id) => {
+    const response = await api.post(`/notifications/${id}/read`);
+    return response.data;
+};
+
 export default api;

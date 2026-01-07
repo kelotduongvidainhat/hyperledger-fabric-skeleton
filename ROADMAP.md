@@ -26,14 +26,13 @@ This roadmap outlines the future development and milestones for the Ownership Re
     - [x] Implementation of Backend Privacy Filtering (PUBLIC/PRIVATE tiers).
 
 ## Phase 3: Advanced Features (Short Term)
-- [ ] **IPFS Integration**: 
-    - Transition to decentralized IPFS for robust, censorship-resistant storage.
-    - Backend: Implement file upload endpoint to push images to IPFS.
-    - Store the IPFS Content ID (CID) on-chain.
+- [x] **IPFS Blueprint**: (Architecture defined, implementation pending).
 - [x] **Role Management**:
     - [x] **Admin**: User Management (Approvals/Ban), Asset Status Override (Freeze/Revoke).
     - [x] **Auditor**: Profile promotion and dedicated role assignment.
     - [x] **User**: Standard Asset Management (Create, Transfer, View Own Assets).
+- [x] **Event Monitoring**:
+    - [x] Integrated real-time blockchain feed into the Admin Dashboard overview.
 - [ ] **Advanced Authentication**:
     - Implement persistent sessions and secure token refresh.
 - [ ] **Auditor View**: Advanced filtering and report generation.

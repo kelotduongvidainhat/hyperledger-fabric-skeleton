@@ -24,18 +24,41 @@ type Asset struct {
 	Description     string    `json:"Description"`
 	ImageURL        string    `json:"ImageURL"`
 	ImageHash       string    `json:"ImageHash"`
-	LastUpdatedBy   string    `json:"LastUpdatedBy"`
-	LastUpdatedAt   time.Time `json:"LastUpdatedAt"`
 	ProposedOwnerID string    `json:"ProposedOwnerID"`
 	View            string    `json:"View"`
+	// Metadata (Flattened for DB)
+	LastUpdatedBy string    `json:"LastUpdatedBy"`
+	LastUpdatedAt time.Time `json:"LastUpdatedAt"`
+	Action        string    `json:"Action"`
+}
+
+type AuditMetadata struct {
+	Action    string `json:"action"`
+	Actor     string `json:"actor"`
+	Timestamp string `json:"timestamp"`
+}
+
+type LedgerValue struct {
+	Asset Asset         `json:"asset"`
+	Audit AuditMetadata `json:"audit"`
 }
 
 type HistoryRecord struct {
-	TxId       string    `json:"TxId"`
-	Timestamp  time.Time `json:"Timestamp"`
-	ActorID    string    `json:"ActorID"`
-	ActionType string    `json:"ActionType"`
-	Value      *Asset    `json:"Value"`
-	IsDelete   bool      `json:"IsDelete"`
+	TxId       string    `json:"txId"`
+	Timestamp  time.Time `json:"timestamp"`
+	ActorID    string    `json:"actorId"`
+	ActionType string    `json:"actionType"`
+	Value      *Asset    `json:"value"`
+	IsDelete   bool      `json:"isDelete"`
 }
 
+type Notification struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    string    `gorm:"index" json:"user_id"` // Format: OrgMSP::Username
+	Title     string    `json:"title"`
+	Message   string    `json:"message"`
+	Type      string    `json:"type"` // info, success, warning
+	IsRead    bool      `gorm:"default:false" json:"is_read"`
+	Link      string    `json:"link"`
+	CreatedAt time.Time `json:"created_at"`
+}
