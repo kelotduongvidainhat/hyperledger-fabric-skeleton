@@ -146,9 +146,12 @@ const Layout = ({ children }) => {
                                     </div>
                                 )}
 
-                                <Link to="/settings" className="flex items-center gap-2 px-3 py-2 text-ink-800/70 hover:text-bronze transition-colors group">
+                                <Link to="/settings" className="flex items-center gap-3 px-3 py-2 text-ink-800/70 hover:text-bronze transition-colors group">
+                                    <div className="flex flex-col items-end leading-none">
+                                        <span className="text-sm font-bold uppercase tracking-widest leading-normal">{user?.username || 'Guest'}</span>
+                                        {user?.org && <span className="text-[9px] text-ink-900/40 font-mono tracking-tighter uppercase">{user.org}</span>}
+                                    </div>
                                     <User className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
-                                    <span className="text-sm font-bold uppercase tracking-widest">{user?.username || 'Guest'}</span>
                                 </Link>
                                 <button
                                     onClick={logout}

@@ -8,7 +8,7 @@ export VERBOSE=false
 # Chaincode details
 CC_NAME="basic"
 CC_VERSION="1.0"
-CC_SEQUENCE="4"
+CC_SEQUENCE="1"
 CHANNEL_NAME="mychannel"
 
 echo "🚀 Deploying Chaincode '$CC_NAME' (CaaS)..."

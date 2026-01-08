@@ -12,6 +12,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
+
+	"fmt"
 )
 
 type AdminHandler struct {
@@ -112,10 +114,10 @@ func (h *AdminHandler) GetUsers(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"identities": allIdentities})
 }
-
 func (h *AdminHandler) UpdateUserStatus(c *fiber.Ctx) error {
 	username := c.Params("username")
 	type StatusUpdate struct {
+		Org    string `json:"org"`    // MSP ID (mandatory for unique lookup)
 		Status string `json:"status"` // ACTIVE, BANNED
 		Role   string `json:"role"`   // user, auditor, admin
 	}
@@ -125,22 +127,33 @@ func (h *AdminHandler) UpdateUserStatus(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
 	}
 
-	if username == "admin" {
+	// Root admin is protected
+	if username == "admin" && (req.Org == "" || req.Org == "Org1MSP") {
 		return c.Status(400).JSON(fiber.Map{"error": "Cannot modify root admin"})
 	}
 
-	// Update or Create DB record
+	// Update or Create DB record using both username and org
 	var user models.User
-	err := h.DB.Where("username = ?", username).First(&user).Error
+	query := h.DB.Where("username = ?", username)
+	if req.Org != "" {
+		query = query.Where("org = ?", req.Org)
+	}
+
+	err := query.First(&user).Error
 	if err != nil {
+		// If we couldn't find a unique user because Org was missing, error out
+		if req.Org == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "Organization (org) is required to identify user uniquely"})
+		}
+		
 		user = models.User{
 			Username: username,
+			Org:      req.Org,
 			Email:    username + "@example.org",
 			Status:   "ACTIVE",
 			Role:     "user",
 		}
 	}
-
 	if req.Status != "" {
 		user.Status = req.Status
 	}
@@ -166,9 +179,11 @@ func (h *AdminHandler) UpdateAssetStatus(c *fiber.Ctx) error {
 	}
 
 	// 1. Update on Blockchain
-	identity, sign, err := fabric.GetIdentity("admin", h.WalletPath)
+	adminUsername := c.Locals("user").(string)
+	adminOrg := c.Locals("org").(string)
+	identity, sign, err := fabric.GetIdentity(adminUsername, adminOrg, h.WalletPath)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Admin identity required for asset management"})
+		return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("Admin identity (%s) not found in wallet: %v", adminUsername, err)})
 	}
 
 	grpcConn, ok := h.Conn.(*grpc.ClientConn)
@@ -215,9 +230,11 @@ func (h *AdminHandler) GetAdminAssets(c *fiber.Ctx) error {
 	}
 
 	// Blockchain logic: Admin only
-	id, sign, err := fabric.GetIdentity("admin", h.WalletPath)
+	adminUsername := c.Locals("user").(string)
+	adminOrg := c.Locals("org").(string)
+	id, sign, err := fabric.GetIdentity(adminUsername, adminOrg, h.WalletPath)
 	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": "Admin identity not found in wallet"})
+		return c.Status(401).JSON(fiber.Map{"error": fmt.Sprintf("Admin identity (%s) not found in wallet", adminUsername)})
 	}
 
 	// Type assert Conn
@@ -276,9 +293,11 @@ func (h *AdminHandler) GetAdminAssets(c *fiber.Ctx) error {
 
 func (h *AdminHandler) Sync(c *fiber.Ctx) error {
 	// 1. Fetch all assets from Blockchain
-	id, sign, err := fabric.GetIdentity("admin", h.WalletPath)
+	adminUsername := c.Locals("user").(string)
+	adminOrg := c.Locals("org").(string)
+	id, sign, err := fabric.GetIdentity(adminUsername, adminOrg, h.WalletPath)
 	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": "Admin identity not found in wallet. Please register 'admin' first."})
+		return c.Status(401).JSON(fiber.Map{"error": fmt.Sprintf("Admin identity (%s) not found in wallet", adminUsername)})
 	}
 
 	grpcConn, ok := h.Conn.(*grpc.ClientConn)

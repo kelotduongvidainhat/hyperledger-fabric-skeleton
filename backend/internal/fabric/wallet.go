@@ -12,7 +12,7 @@ import (
 
 // SaveIdentity saves the private key, certificate, and MSP ID to the file system
 func SaveIdentity(username string, cert []byte, key []byte, walletPath string, mspid string) error {
-	userDir := filepath.Join(walletPath, username)
+	userDir := filepath.Join(walletPath, mspid, username)
 	if err := os.MkdirAll(userDir, 0700); err != nil {
 		return fmt.Errorf("failed to create wallet dir: %v", err)
 	}
@@ -33,8 +33,8 @@ func SaveIdentity(username string, cert []byte, key []byte, walletPath string, m
 }
 
 // GetIdentity loads the credentials from the file system and returns an X509Identity
-func GetIdentity(username string, walletPath string) (*identity.X509Identity, identity.Sign, error) {
-	userDir := filepath.Join(walletPath, username)
+func GetIdentity(username string, mspid string, walletPath string) (*identity.X509Identity, identity.Sign, error) {
+	userDir := filepath.Join(walletPath, mspid, username)
 	
 	certPath := filepath.Join(userDir, "cert.pem")
 	keyPath := filepath.Join(userDir, "key.pem")
@@ -45,9 +45,9 @@ func GetIdentity(username string, walletPath string) (*identity.X509Identity, id
 		return nil, nil, fmt.Errorf("failed to read cert: %v", err)
 	}
 
-	// Read MSP ID
-	mspid := "Org1MSP" // Default for backward compatibility
+	// Check for MSP ID file if needed, but we rely on the parameter mspid now
 	if mspidBytes, err := os.ReadFile(mspidPath); err == nil {
+		// Use file value if exists for legacy support, otherwise use parameter
 		mspid = string(mspidBytes)
 	}
 
@@ -96,8 +96,8 @@ func GetIdentity(username string, walletPath string) (*identity.X509Identity, id
 }
 
 // IdentityExists checks if a user is in the wallet
-func IdentityExists(username string, walletPath string) bool {
-	if _, err := os.Stat(filepath.Join(walletPath, username, "cert.pem")); os.IsNotExist(err) {
+func IdentityExists(username string, mspid string, walletPath string) bool {
+	if _, err := os.Stat(filepath.Join(walletPath, mspid, username, "cert.pem")); os.IsNotExist(err) {
 		return false
 	}
 	return true

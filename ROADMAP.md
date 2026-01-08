@@ -24,6 +24,9 @@ This roadmap outlines the future development and milestones for the Ownership Re
     - [x] Loading/Syncing indicators and visual status badges.
     - [x] Split Discovery Gallery from Personal Management Dashboard.
     - [x] Implementation of Backend Privacy Filtering (PUBLIC/PRIVATE tiers).
+- [x] **Dev Experience**:
+    - [x] CaaS External Builder configuration for stable production-like connections.
+    - [x] Automated Data Initialization (10 Users/Assets) via `init-data.sh`.
 
 ## Phase 3: Advanced Features (Short Term)
 - [X] **IPFS Integration**: 

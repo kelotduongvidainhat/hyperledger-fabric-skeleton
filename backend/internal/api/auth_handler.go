@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
+	"strings"
 )
 
 // AuthHandler holds dependencies
@@ -21,6 +22,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	type LoginReq struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		Org      string `json:"org"` // Optional: If provided, only try this CA
 	}
 
 	var req LoginReq
@@ -35,7 +37,12 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var err error
 	var finalCfg fabric.CAConfig
 
-	for _, cfg := range h.CAConfigs {
+	for mspid, cfg := range h.CAConfigs {
+		// If org provided, skip others
+		if req.Org != "" && req.Org != mspid {
+			continue
+		}
+
 		err = fabric.EnrollUser(cfg, req.Username, req.Password)
 		if err == nil {
 			finalCfg = cfg
@@ -50,7 +57,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	// 2. Check DB Status
 	var user models.User
-	err = h.DB.Where("username = ?", req.Username).First(&user).Error
+	err = h.DB.Where("username = ? AND org = ?", req.Username, finalCfg.MSPID).First(&user).Error
 	if err == nil {
 		if user.Status == "BANNED" {
 			return c.Status(403).JSON(fiber.Map{"error": "Your account has been banned. Contact Admin."})
@@ -63,24 +70,35 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 			user.Org = finalCfg.MSPID
 			h.DB.Save(&user)
 		}
-	} else if req.Username != "admin" {
+	} else {
 		// If user exists in CA but not in DB, create it (backfill)
+		userRole := "user"
+		if req.Username == "admin" || strings.HasPrefix(req.Username, "admin-") {
+			userRole = "admin"
+		}
+
+		// Generate email based on org to prevent collisions
+		userEmail := req.Username + "@example.org"
+		if finalCfg.MSPID == "Org2MSP" {
+			userEmail = req.Username + "@org2.example.com"
+		}
+
 		user = models.User{
 			Username: req.Username,
 			Org:      finalCfg.MSPID,
-			Role:     "user",
-			Status:   "ACTIVE", // Auto-active for previously registered users
-			Email:    req.Username + "@example.org",
+			Email:    userEmail,
+			Role:     userRole,
+			Status:   "ACTIVE",
 		}
-		h.DB.Create(&user)
+		if err := h.DB.Create(&user).Error; err != nil {
+			log.Printf("Failed to backfill DB profile for %s (%s): %v", req.Username, finalCfg.MSPID, err)
+		}
 	}
 
 	// 3. Determine Role
-	role := "user"
-	if req.Username == "admin" {
-		role = "admin"
-	} else if err == nil {
-		role = user.Role
+	role := user.Role
+	if req.Username == "admin" || strings.HasPrefix(req.Username, "admin-") {
+		role = "admin" // Override safety for admin accounts
 	}
 
 	// 4. Finalize Response Org
@@ -141,9 +159,18 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	// Create user in Off-Chain DB
+	userEmail := req.Email
+	if userEmail == "" {
+		if org == "Org2MSP" {
+			userEmail = req.Username + "@org2.example.com"
+		} else {
+			userEmail = req.Username + "@example.org"
+		}
+	}
+
 	dbUser := models.User{
 		Username: req.Username,
-		Email:    req.Email,
+		Email:    userEmail,
 		Org:      org,
 		Role:     "user",
 		Status:   "PENDING", // Wait for Admin Approval

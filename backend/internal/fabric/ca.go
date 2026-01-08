@@ -137,12 +137,16 @@ func RegisterUser(cfg CAConfig, username, secret string) (string, error) {
 
 	// Step 1: Enroll Admin locally (in container) to get signing certs
 	// This ensures the local CLI has the necessary identities to perform registration
-	enrollCmd := exec.Command("docker", "exec", cfg.ContainerName, "fabric-ca-client", "enroll",
-		"-u", "https://admin:adminpw@localhost:"+strings.Split(cfg.URL, ":")[2],
-		"--tls.certfiles", caCert,
-	)
-	if out, err := enrollCmd.CombinedOutput(); err != nil {
-		log.Printf("Admin local enroll info (ignoring if already enrolled): %s", string(out))
+	// Check if already enrolled first to reduce volume of logs
+	checkCmd := exec.Command("docker", "exec", cfg.ContainerName, "ls", "/etc/hyperledger/fabric-ca-server/msp/signcerts/cert.pem")
+	if err := checkCmd.Run(); err != nil {
+		enrollCmd := exec.Command("docker", "exec", cfg.ContainerName, "fabric-ca-client", "enroll",
+			"-u", "https://admin:adminpw@localhost:"+strings.Split(cfg.URL, ":")[2],
+			"--tls.certfiles", caCert,
+		)
+		if out, err := enrollCmd.CombinedOutput(); err != nil {
+			log.Printf("Warning: Admin local enroll failed for %s: %s", cfg.MSPID, string(out))
+		}
 	}
 
 	// Step 2: Register the new user
@@ -169,6 +173,16 @@ func RegisterUser(cfg CAConfig, username, secret string) (string, error) {
 // ListIdentities returns the list of all registered identities from the CA
 func ListIdentities(cfg CAConfig) (string, error) {
 	caCert := "/etc/hyperledger/fabric-ca-server/tls-cert.pem"
+	
+	// Ensure enrolled for CLI
+	checkCmd := exec.Command("docker", "exec", cfg.ContainerName, "ls", "/etc/hyperledger/fabric-ca-server/msp/signcerts/cert.pem")
+	if err := checkCmd.Run(); err != nil {
+		exec.Command("docker", "exec", cfg.ContainerName, "fabric-ca-client", "enroll",
+			"-u", "https://admin:adminpw@localhost:"+strings.Split(cfg.URL, ":")[2],
+			"--tls.certfiles", caCert,
+		).Run()
+	}
+
 	cmd := exec.Command("docker", "exec", cfg.ContainerName, "fabric-ca-client", "identity", "list",
 		"-u", "https://admin:adminpw@localhost:"+strings.Split(cfg.URL, ":")[2],
 		"--tls.certfiles", caCert,

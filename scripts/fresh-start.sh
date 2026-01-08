@@ -22,8 +22,8 @@ echo "🧹 Cleaning up previous artifacts..."
 if [ -f "network/docker-compose.yaml" ]; then
     docker-compose -f network/docker-compose.yaml down --volumes --remove-orphans || true
 fi
-# Remove crypto-config and channel-artifacts
-rm -rf network/crypto-config network/channel-artifacts
+# Remove crypto-config, channel-artifacts, and local wallet
+rm -rf network/crypto-config network/channel-artifacts backend/wallet
 
 # 3. Enter Network Directory
 cd network
@@ -41,8 +41,8 @@ export FABRIC_CFG_PATH=${PWD}
 configtxgen -profile TwoOrgsChannel -outputBlock ./channel-artifacts/mychannel.block -channelID mychannel
 
 # 6. Start Network
-echo "🐳 Starting Docker containers..."
-docker-compose up -d
+echo "🐳 Starting Docker containers (including Backend/Frontend)..."
+docker-compose up -d --build
 
 # Return to root
 cd ..

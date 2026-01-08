@@ -6,6 +6,7 @@ import { Key } from 'lucide-react';
 const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [org, setOrg] = useState('');
     const [error, setError] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -13,7 +14,7 @@ const Login = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        const success = await login(username, password);
+        const success = await login(username, password, org);
         if (success) {
             navigate('/');
         } else {
@@ -47,6 +48,18 @@ const Login = () => {
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                         />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Organization (Optional)</label>
+                        <select
+                            className="w-full p-2 border border-bronze/30 rounded focus:ring-2 focus:ring-wax-red focus:border-transparent bg-white/50"
+                            value={org}
+                            onChange={(e) => setOrg(e.target.value)}
+                        >
+                            <option value="">Auto-Detect Organization</option>
+                            <option value="Org1MSP">Organization 1 (Org1MSP)</option>
+                            <option value="Org2MSP">Organization 2 (Org2MSP)</option>
+                        </select>
                     </div>
                     <div>
                         <label className="block text-sm font-semibold mb-1">Secret</label>

@@ -68,8 +68,18 @@ peer will not accept external chaincode connection (except in dev mode)
 Legacy error message often masking an incorrect `CHAINCODE_ID` format in the container environment. The ID **must** be the full Package ID (`<label>:<hash>`).
 
 **Solution:**
-Ensure `CHAINCODE_ID` includes the hash:
+Ensuring `CHAINCODE_ID` includes the hash:
 `basic_1.0:72532aa0858d4c2d11fe7355936842ce76118efb89ad23f52200c9938d4e8d6f`
+
+4.  **Missing External Builder**: Even with the correct ID, the peer must be configured to use an external builder for `ccaas` types. Ensure these are set in `docker-compose.yaml`:
+    ```yaml
+    - CORE_CHAINCODE_EXTERNALBUILDERS=[{"name":"ccaas-builder","path":"/opt/hyperledger/builders/ccaas","propagateEnvironment":["CORE_PEER_ID","CORE_PEER_LOCALMSPID"]}]
+    ```
+    And mount the builders:
+    ```yaml
+    volumes:
+      - ../builders/ccaas:/opt/hyperledger/builders/ccaas
+    ```
 
 ### 1.4 Packaging Issues inside Scripts
 
@@ -254,4 +264,64 @@ Implement a check in the backend (`RegisterUser`) to catch the specific string `
 
 ---
 
-**Last Updated**: 2026-01-06
+**Error Log (Email Duplicate):**
+```
+duplicate key value violates unique constraint "idx_users_email"
+```
+**Cause:**
+Multiple users registered without an email address, causing empty string `""` collisions in the database's unique `email` column.
+
+**Solution:**
+Ensure unique emails are provided or generated. The backend now generates `<username>@example.org` if no email is provided to prevent DB registration failure.
+
+---
+
+### 2.8 Database Reset: `ERROR: replication slot "..." already exists`
+**Solution:**
+If you see replication errors after a crash, remove the local postgres data volume:
+`docker volume rm network_postgres_data` (or similar) followed by `sudo ./scripts/fresh-start.sh`.
+
+---
+
+## 4. Containerization Pitfalls
+
+### 4.1 TimeZone Missing: `unknown time zone Asia/Ho_Chi_Minh`
+**Cause:**
+Alpine Linux (commonly used in light Docker images) does not include timezone data by default.
+**Solution:**
+Ensure `tzdata` is installed in the final Docker image stage:
+`RUN apk add --no-cache tzdata`
+
+### 4.2 Module Version Mismatch: `go.mod requires go >= 1.25.2`
+**Cause:**
+Building a project with a `go.mod` specifying a version higher than the Go installed in the Docker image.
+**Solution:**
+Use the `golang:alpine` or `golang:1.25-alpine` base image in the build stage.
+
+### 4.3 Node.js / Vite Incompatibility: `crypto.hash is not a function`
+**Cause:**
+The latest versions of Vite require Node.js 20+ or 22+. Node 18 lacks certain crypto APIs used by the bundler.
+**Solution:**
+Upgrade the frontend Docker image to `node:22-alpine`.
+
+### 4.4 Internal Networking: Backend cannot find Postgres/Peer
+**Cause:**
+Hardcoded `localhost` inside a container refers to the container itself, not the host or other services.
+**Solution:**
+1.  Use service names from `docker-compose.yaml` (e.g., `DB_HOST=postgres`).
+2.  Ensure all services are on the same Docker network (e.g., `fabric_test`).
+
+---
+
+**Last Updated**: 2026-01-08
+
+### 2.7 Identity Collision: `Authentication failure` on Multi-Org
+
+**Symptoms:**
+Admin from Org2 cannot log in, or logs show `Authentication failure` for one org while working for another.
+
+**Cause:**
+Shared wallet directory (`./wallet/admin`) caused Org identities with the same name to overwrite each other.
+
+**Solution:**
+The wallet structure has been updated to include the MSPID: `./wallet/<MSPID>/<username>/`. This ensures that even if both Orgs have an `admin`, their certificates are stored separately.

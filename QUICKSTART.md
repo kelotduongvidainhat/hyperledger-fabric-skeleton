@@ -11,14 +11,14 @@ Ensure you have the following installed:
 
 ---
 
-## 🛠️ Step 1: Network "Fresh Start"
-Reset and bootstrap the base Hyperledger Fabric network (Orgs, Peers, Orderer) and the **PostgreSQL** off-chain database.
+## 🛠️ Step 1: Network & Application "Fresh Start"
+Reset and bootstrap the entire stack: Blockchain, Database, IPFS, **Backend**, and **Frontend**.
 
 ```bash
 # Run with sudo to ensure volume cleanup
 sudo ./scripts/fresh-start.sh
 ```
-*This script bootstraps core network containers and initializes the PostgreSQL storage at `localhost:5432`.*
+*This script regenerates crypto materials, bootstraps all 12+ containers, and builds the latest application code.*
 
 ---
 
@@ -26,25 +26,19 @@ sudo ./scripts/fresh-start.sh
 Deploy the Smart Contract using **Chaincode-as-a-Service**.
 
 1. **Wait for network stabilization** (about 10 seconds).
-2. **Execute deployment inside CLI**:
+2. **Execute deployment script**:
 ```bash
-# Copy the package to CLI
-# chaincode/packaging/basic.tar.gz
+# Copy package to CLI
 docker cp chaincode/packaging/basic.tar.gz cli:/opt/gopath/src/github.com/hyperledger/fabric/peer/
 
-# Run deployment script
+# Run deployment
 docker exec cli ./scripts/deploy-caas.sh
 ```
-
-> **Note:** If the `CHAINCODE_ID` changes (due to code edits), update the `network/.env` file with the new `Package ID` and restart the chaincode container:
-> ```bash
-> docker-compose -f network/docker-compose.yaml up -d --no-deps chaincode-basic
-> ```
 
 ---
 
 ## ⚓ Step 3: Update Anchor Peers
-Critical for cross-org discovery and satisfying endorsement policies.
+Enable cross-org discovery and satisfy endorsement policies.
 
 ```bash
 docker exec cli ./scripts/update-anchor-peers.sh
@@ -52,27 +46,39 @@ docker exec cli ./scripts/update-anchor-peers.sh
 
 ---
 
-## 💻 Step 4: Run the Backend
-The backend provides the REST API and interacts with the Fabric CA (now with TLS enabled).
+## 🌐 Step 4: Access the Application
+The entire stack is now running in Docker. You can access the interfaces immediately:
 
+- **Frontend UI**: [http://localhost:5173](http://localhost:5173)
+- **Backend API**: [http://localhost:3000](http://localhost:3000)
+- **IPFS Gateway**: [http://localhost:8080](http://localhost:8080)
+
+### Managing Services
+If you make code changes, you can rebuild specific services without a full reset:
 ```bash
-cd backend
-# Install dependencies
-go mod download
-# Run the server
-go run main.go
+# Rebuild Backend
+docker-compose -f network/docker-compose.yaml up -d --build backend
+
+# Rebuild Frontend
+docker-compose -f network/docker-compose.yaml up -d --build frontend
 ```
-*The server will run on `http://localhost:3000`.*
 
 ---
 
-## 🌐 Step 5: Run the Frontend (Optional)
+---
+
+## 📊 Step 6: Initialize Test Data (Optional)
+Populate the network with test users and assets for both organizations.
+
 ```bash
-cd frontend
-npm install
-npm run dev
+# Ensure backend is running in another terminal
+# Initialize Org1 (10 users)
+./scripts/init-data.sh
+
+# Initialize Org2 (1 Admin + 5 users)
+./scripts/init-org2.sh
 ```
-*The app will be available at `http://localhost:5173`.*
+*These scripts automate registration, admin approval, and asset creation.*
 
 ---
 

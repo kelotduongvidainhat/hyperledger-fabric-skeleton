@@ -22,35 +22,59 @@ import (
 
 func main() {
 	// 1. Setup DB
-	database, err := db.InitDB("localhost", "5432", "admin", "adminpw", "ownership_registry")
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+	dbPort := os.Getenv("DB_PORT")
+	if dbPort == "" {
+		dbPort = "5432"
+	}
+	database, err := db.InitDB(dbHost, dbPort, "admin", "adminpw", "ownership_registry")
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
 
 	// 2. CONFIGURATION
-	cryptoPath := "../network/crypto-config/peerOrganizations/org1.example.com"
-	certPath := fmt.Sprintf("%s/users/Admin@org1.example.com/msp/signcerts/Admin@org1.example.com-cert.pem", cryptoPath)
-	keyPath := fmt.Sprintf("%s/users/Admin@org1.example.com/msp/keystore/priv_sk", cryptoPath)
-	tlsCertPath := fmt.Sprintf("%s/peers/peer0.org1.example.com/tls/ca.crt", cryptoPath)
-	peerEndpoint := "localhost:7051"
-	walletPath := "./wallet"
+	cryptoPathOrg1 := os.Getenv("CRYPTO_PATH_ORG1")
+	if cryptoPathOrg1 == "" {
+		cryptoPathOrg1 = "../network/crypto-config/peerOrganizations/org1.example.com"
+	}
+	cryptoPathOrg2 := os.Getenv("CRYPTO_PATH_ORG2")
+	if cryptoPathOrg2 == "" {
+		cryptoPathOrg2 = "../network/crypto-config/peerOrganizations/org2.example.com"
+	}
+	
+	// Org1 Admin paths
+	certPath1 := fmt.Sprintf("%s/users/Admin@org1.example.com/msp/signcerts/Admin@org1.example.com-cert.pem", cryptoPathOrg1)
+	keyPath1 := ""
+	tlsCertPath1 := fmt.Sprintf("%s/peers/peer0.org1.example.com/tls/ca.crt", cryptoPathOrg1)
+	
+	peerEndpoint := os.Getenv("PEER_ENDPOINT")
+	if peerEndpoint == "" {
+		peerEndpoint = "localhost:7051"
+	}
+	walletPath := os.Getenv("WALLET_PATH")
+	if walletPath == "" {
+		walletPath = "./wallet"
+	}
 
-	// Find Key File (Admin)
-	keyDir := fmt.Sprintf("%s/users/Admin@org1.example.com/msp/keystore", cryptoPath)
-	files, err := os.ReadDir(keyDir)
+	// Find Key File (Org1 Admin)
+	keyDir1 := fmt.Sprintf("%s/users/Admin@org1.example.com/msp/keystore", cryptoPathOrg1)
+	files, err := os.ReadDir(keyDir1)
 	if err == nil {
 		for _, file := range files {
 			if file.Name() != "" {
-				keyPath = fmt.Sprintf("%s/%s", keyDir, file.Name())
+				keyPath1 = fmt.Sprintf("%s/%s", keyDir1, file.Name())
 				break
 			}
 		}
 	}
 
 	cfg := fabric.Config{
-		CertPath:      certPath,
-		KeyPath:       keyPath,
-		TlsCertPath:   tlsCertPath,
+		CertPath:      certPath1,
+		KeyPath:       keyPath1,
+		TlsCertPath:   tlsCertPath1,
 		PeerEndpoint:  peerEndpoint,
 		GatewayPeer:   "peer0.org1.example.com",
 		ChannelName:   "mychannel",
@@ -67,19 +91,28 @@ func main() {
 	// 2. Setup Auth Handler
 	// CA URL is usually localhost:7054 for Org1 CA
 	// TLS is disabled.
+	ca1URL := os.Getenv("CA1_URL")
+	if ca1URL == "" {
+		ca1URL = "https://localhost:7054"
+	}
+	ca2URL := os.Getenv("CA2_URL")
+	if ca2URL == "" {
+		ca2URL = "https://localhost:8054"
+	}
+
 	caCfg1 := fabric.CAConfig{
-		URL:           "https://localhost:7054",
+		URL:           ca1URL,
 		MSPID:         "Org1MSP",
 		WalletPath:    walletPath,
-		AdminPath:     cryptoPath + "/users/Admin@org1.example.com/msp",
+		AdminPath:     cryptoPathOrg1 + "/users/Admin@org1.example.com/msp",
 		CAName:        "ca-org1",
 		ContainerName: "ca_org1",
 	}
 	caCfg2 := fabric.CAConfig{
-		URL:           "https://localhost:8054",
+		URL:           ca2URL,
 		MSPID:         "Org2MSP",
 		WalletPath:    walletPath,
-		AdminPath:     cryptoPath + "/users/Admin@org2.example.com/msp",
+		AdminPath:     cryptoPathOrg2 + "/users/Admin@org2.example.com/msp",
 		CAName:        "ca-org2",
 		ContainerName: "ca_org2",
 	}
@@ -102,7 +135,11 @@ func main() {
 	}
 
 	// 3. Setup IPFS Handler
-	sh := shell.NewShell("localhost:5001")
+	ipfsURL := os.Getenv("IPFS_URL")
+	if ipfsURL == "" {
+		ipfsURL = "localhost:5001"
+	}
+	sh := shell.NewShell(ipfsURL)
 	ipfsHandler := &api.IPFSHandler{
 		Shell: sh,
 	}
@@ -116,7 +153,8 @@ func main() {
 	// 3. START EVENTUAL CONSISTENCY LISTENER
 	// We use the Admin identity to listen for all events across the organization
 	go func() {
-		adminID, adminSign, err := fabric.GetIdentity("admin", walletPath)
+		// Event listener usually runs as Org1 Admin
+		adminID, adminSign, err := fabric.GetIdentity("admin", "Org1MSP", walletPath)
 		if err != nil {
 			log.Printf("Listener Error: Could not load admin identity: %v", err)
 			return
@@ -165,11 +203,12 @@ func main() {
 	// Helper to get Contract for the logged-in user
 	getContract := func(c *fiber.Ctx) (*client.Gateway, *client.Contract, error) {
 		username := c.Locals("user").(string)
+		org := c.Locals("org").(string)
 		
 		// Load Identity from Wallet
-		id, sign, err := fabric.GetIdentity(username, walletPath)
+		id, sign, err := fabric.GetIdentity(username, org, walletPath)
 		if err != nil {
-			return nil, nil, fmt.Errorf("identity not found for user %s: %v", username, err)
+			return nil, nil, fmt.Errorf("identity not found for user %s (%s): %v", username, org, err)
 		}
 
 		// Create Gateway for this request

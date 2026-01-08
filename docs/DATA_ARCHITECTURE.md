@@ -76,11 +76,20 @@ erDiagram
 | Column | Type | Notes |
 | :--- | :--- | :--- |
 | `id` | SERIAL | Primary Key |
-| `username` | VARCHAR(64) | Unique Index |
+| `username` | VARCHAR(64) | Unique Index (with Org) |
 | `org` | VARCHAR(64) | Org1MSP or Org2MSP |
 | `email` | VARCHAR(255) | |
 | `role` | VARCHAR(20) | user, admin |
 | `status` | VARCHAR(20) | PENDING, ACTIVE, BANNED |
+
+**Identity & Wallet Storage**
+To support multiple organizations without name collisions, the backend isolates identities in a hierarchical wallet structure:
+`./backend/wallet/<MSPID>/<username>/`
+
+Each folder contains:
+- `cert.pem`: The user's X.509 certificate.
+- `key.pem`: The user's private key.
+- `mspid`: A text file containing the organization identifier.
 
 **Table: `assets`**
 | Column | Type | Notes |
@@ -155,7 +164,6 @@ Hyperledger Fabric automatically maintains a history of all key-value updates.
   - **Generation**: The chaincode extracts the `MSPID` and `hf.EnrollmentID` attribute from the caller's certificate.
   - **Reliability**: If `hf.EnrollmentID` is unavailable, it falls back to the certificate's **Common Name (CN)**.
 - **Profile (Off-Chain)**: The `User` model in PostgreSQL stores `Username`, `Org`, `Email`, `Role`.
-- **Mapping**: The Application Backend maps the current logged-in user to their organization via the PostgreSQL database to automate the construction of the full `OrgMSP::Username` identifier for blockchain transactions (e.g., during transfers).
 - **Mapping**: The Application Backend maps the current logged-in user to their organization via the PostgreSQL database to automate the construction of the full `OrgMSP::Username` identifier for blockchain transactions (e.g., during transfers).
 - **Synchronization**: A manual **Sync Ledger** mechanism is provided via the Admin Console to backfill the PostgreSQL database from the Blockchain World State. This ensures that even if events are missed, the off-chain cache can be refreshed to maintain high-performance administrative queries while the Ledger remains the single source of truth.
 - **Dual-Source Dashboard**: The Admin Dashboard utilizes a hybrid data strategy, fetching high-level stats from PostgreSQL while displaying a real-time feed of recent ledger activity directly from the Chaincode (`GetAllAssets`) for immediate oversight of new transactions.

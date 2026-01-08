@@ -29,10 +29,10 @@ const AdminUsers = () => {
         fetchUsers();
     }, [token]);
 
-    const handleUpdateStatus = async (username, status, role = "") => {
+    const handleUpdateStatus = async (username, org, status, role = "") => {
         setActionLoading(username);
         try {
-            await api.post(`/admin/users/${username}/status`, { status, role }, {
+            await api.post(`/admin/users/${username}/status`, { org, status, role }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             await fetchUsers();
@@ -116,7 +116,7 @@ const AdminUsers = () => {
                                         <div className="flex justify-end gap-2 text-[9px] font-bold uppercase">
                                             {id.status === 'PENDING' && (
                                                 <button
-                                                    onClick={() => handleUpdateStatus(id.name, 'ACTIVE')}
+                                                    onClick={() => handleUpdateStatus(id.name, id.org, 'ACTIVE')}
                                                     disabled={actionLoading === id.name}
                                                     className="flex items-center gap-1.5 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-all disabled:opacity-50"
                                                 >
@@ -126,7 +126,7 @@ const AdminUsers = () => {
                                             {id.status === 'ACTIVE' && (
                                                 <>
                                                     <button
-                                                        onClick={() => handleUpdateStatus(id.name, 'BANNED')}
+                                                        onClick={() => handleUpdateStatus(id.name, id.org, 'BANNED')}
                                                         disabled={actionLoading === id.name}
                                                         className="flex items-center gap-1.5 px-3 py-1 border border-red-200 text-red-600 rounded hover:bg-red-600 hover:text-white transition-all disabled:opacity-50"
                                                     >
@@ -134,7 +134,7 @@ const AdminUsers = () => {
                                                     </button>
                                                     {id.role !== 'auditor' && (
                                                         <button
-                                                            onClick={() => handleUpdateStatus(id.name, '', 'auditor')}
+                                                            onClick={() => handleUpdateStatus(id.name, id.org, '', 'auditor')}
                                                             disabled={actionLoading === id.name}
                                                             className="flex items-center gap-1.5 px-3 py-1 border border-blue-200 text-blue-600 rounded hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50"
                                                         >
@@ -143,7 +143,7 @@ const AdminUsers = () => {
                                                     )}
                                                     {id.role === 'auditor' && (
                                                         <button
-                                                            onClick={() => handleUpdateStatus(id.name, '', 'user')}
+                                                            onClick={() => handleUpdateStatus(id.name, id.org, '', 'user')}
                                                             disabled={actionLoading === id.name}
                                                             className="flex items-center gap-1.5 px-3 py-1 border border-parchment-500 text-ink-800/60 rounded hover:bg-ink-800 hover:text-white transition-all disabled:opacity-50"
                                                         >
@@ -154,7 +154,7 @@ const AdminUsers = () => {
                                             )}
                                             {id.status === 'BANNED' && (
                                                 <button
-                                                    onClick={() => handleUpdateStatus(id.name, 'ACTIVE')}
+                                                    onClick={() => handleUpdateStatus(id.name, id.org, 'ACTIVE')}
                                                     disabled={actionLoading === id.name}
                                                     className="flex items-center gap-1.5 px-3 py-1 bg-ink-800 text-white rounded text-[9px] font-bold uppercase hover:bg-black transition-all disabled:opacity-50"
                                                 >
@@ -199,14 +199,14 @@ const StatusBadge = ({ status }) => {
 
     return (
         <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase border tracking-wider ${isActive ? 'bg-green-50 text-green-700 border-green-200' :
-                isPending ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                    isDeleted ? 'bg-slate-50 text-slate-700 border-slate-200' :
-                        'bg-red-50 text-red-700 border-red-200'
+            isPending ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                isDeleted ? 'bg-slate-50 text-slate-700 border-slate-200' :
+                    'bg-red-50 text-red-700 border-red-200'
             }`}>
             <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-500' :
-                    isPending ? 'bg-amber-500' :
-                        isDeleted ? 'bg-slate-400' :
-                            'bg-red-500'
+                isPending ? 'bg-amber-500' :
+                    isDeleted ? 'bg-slate-400' :
+                        'bg-red-500'
                 }`}></div>
             {status}
         </span>
