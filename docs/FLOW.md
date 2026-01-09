@@ -9,10 +9,13 @@ This flow occurs when an administrator loads the **Admin Dashboard**. It perform
 sequenceDiagram
     participant Admin as Admin Browser
     participant API as Backend (Fiber)
+    participant OPA as Policy Agent (OPA)
     participant DB as PostgreSQL
     participant Fabric as Chaincode (Go)
 
     Admin->>API: GET /admin/stats
+    API->>OPA: CheckAuthorization(user, role...)
+    OPA-->>API: Result: ALLOW
     API->>DB: Count Assets & Owners
     DB-->>API: Row Counts
     API-->>Admin: NetworkStats JSON
@@ -36,6 +39,8 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     Admin->>API: POST /admin/sync
+    API->>OPA: CheckAuthorization(user, role...)
+    OPA-->>API: Result: ALLOW
     API->>API: Establish Admin Gateway
     API->>Fabric: EvaluateTransaction("GetAllAssets")
     Fabric-->>API: Full Ledger Array (Asset + Audit)
@@ -60,6 +65,8 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     User->>API: POST /assets (CreateAsset)
+    API->>OPA: CheckAuthorization(user, role...)
+    OPA-->>API: Result: ALLOW
     API->>Fabric: SubmitTransaction("CreateAsset", id, name...)
     Fabric->>Fabric: Commit to Ledger & Emit EVENT
     Fabric-->>API: Success
@@ -84,6 +91,8 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     Admin->>API: POST /admin/assets/:id/status (e.g., FROZEN)
+    API->>OPA: CheckAuthorization(user, role...)
+    OPA-->>API: Result: ALLOW
     API->>Fabric: SubmitTransaction("UpdateAssetStatus", id, "FROZEN")
     Fabric->>Fabric: Update World State
     Fabric-->>API: Success

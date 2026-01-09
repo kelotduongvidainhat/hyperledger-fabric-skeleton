@@ -66,11 +66,12 @@ docker-compose -f network/docker-compose.yaml up -d --build frontend
 
 ---
 
-## 🏗️ How it Works: Identity & CA
-This project uses a **Hybrid CA Interaction** model:
+## 🏗️ How it Works: Identity & Policy
+This project uses a **Hybrid CA + Policy-as-Code** model:
 - **Registration**: The Backend uses `docker exec` to trigger `fabric-ca-client` directly inside the CA containers. This avoids complex TLS certificate mismatches.
 - **Persistence**: User identities are stored as standard Fabric Wallet files in `backend/wallet/`. 
-- **Volumes**: Mounting `/var/run/docker.sock` to the Backend container is required for this orchestration.
+- **Authorization (OPA)**: A dedicated **Open Policy Agent** sidecar service manages all authorization logic. The backend delegates "Who can do what" decisions to OPA via **Rego** policies, allowing for dynamic rule updates without code changes.
+- **Volumes**: Mounting `/var/run/docker.sock` to the Backend container is required for CA orchestration.
 
 ---
 

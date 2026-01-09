@@ -168,15 +168,17 @@ Hyperledger Fabric automatically maintains a history of all key-value updates.
 - **Synchronization**: A manual **Sync Ledger** mechanism is provided via the Admin Console to backfill the PostgreSQL database from the Blockchain World State. This ensures that even if events are missed, the off-chain cache can be refreshed to maintain high-performance administrative queries while the Ledger remains the single source of truth.
 - **Dual-Source Dashboard**: The Admin Dashboard utilizes a hybrid data strategy, fetching high-level stats from PostgreSQL while displaying a real-time feed of recent ledger activity directly from the Chaincode (`GetAllAssets`) for immediate oversight of new transactions.
 
-### 9. Privacy Enforcement (Backend API)
+### 9. Privacy Enforcement (OPA & Backend API)
 
-The Backend API enforces strict visibility filtering to ensure data isolation between users.
+The system uses **Open Policy Agent (OPA)** to enforce strict visibility filtering and authorization, ensuring data isolation between users.
 
-1.  **Administrative Access**: Users with the `admin` role can retrieve all assets regardless of their `View` setting.
-2.  **Standard User Retrieval**: 
-    - **Listings**: Filters database queries to return only records where `View = 'PUBLIC'` OR `OwnerID = currentUser`.
+1.  **Centralized Policy (OPA)**: All high-level authorization decisions (e.g., "Can this user access /admin/stats?") are delegated to an OPA sidecar. Policies are written in **Rego** for maximum flexibility.
+2.  **Administrative Access**: Users with the `admin` role are granted broad access via policies, allowing them to retrieve all assets regardless of their `View` setting.
+3.  **Standard User Retrieval**: 
+    - **Authorization**: OPA checks if the user has general access to the requested endpoint.
+    - **Listing Filtering**: The backend filters database queries to return only records where `View = 'PUBLIC'` OR `OwnerID = currentUser`.
     - **Detail Access**: Performs an runtime check. If an asset is `PRIVATE` and not owned by the requester, a `403 Forbidden` is returned.
-3.  **UI Isolation**: The frontend utilizes two distinct detail paths:
+4.  **UI Isolation**: The frontend utilizes two distinct detail paths:
     - `/gallery/:id`: Read-only discovery view powered by the database.
     - `/assets/:id`: Management console for owners/admins.
 

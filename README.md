@@ -13,6 +13,7 @@ A comprehensive starter template for building production-grade Hyperledger Fabri
 
 - **Advanced Functionality:**
   - **Asset Lifecycle:** Create, Read, Update, Delete, Transfer with full history auditing.
+  - **Policy-as-Code (OPA):** Decoupled authorization logic using **Open Policy Agent** for centralized permission management.
   - **Admin Dashboard:** Integrated oversight of all network identities and assets.
   - **Data Sync:** Manual and automated "Dual Source" synchronization (Ledger ↔ PostgreSQL).
   - **IPFS Integration:** Decentralized image storage for artifact permanence.
