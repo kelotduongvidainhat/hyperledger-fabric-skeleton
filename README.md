@@ -7,7 +7,7 @@ A comprehensive starter template for building production-grade Hyperledger Fabri
 - **Full Stack Architecture:** 
   - **Blockchain:** Hyperledger Fabric 2.5 (2 Orgs, 1 Orderer)
   - **Chaincode:** Go (Asset Transfer + User Management)
-  - **Backend:** Go/Gin REST API with Fabric SDK
+  - **Backend:** Go/Fiber REST API with Fabric Gateway SDK
   - **Frontend:** React/Vite with Tailwind CSS
   - **Database:** PostgreSQL for off-chain query optimization
 
@@ -16,6 +16,7 @@ A comprehensive starter template for building production-grade Hyperledger Fabri
   - **Admin Dashboard:** Integrated oversight of all network identities and assets.
   - **Data Sync:** Manual and automated "Dual Source" synchronization (Ledger ↔ PostgreSQL).
   - **IPFS Integration:** Decentralized image storage for artifact permanence.
+  - **Hybrid CA Interaction:** Uses `docker exec` for stable, containerized user registration without complex TLS/Binary dependencies.
   - **Enhanced UI/UX:** Premium design with dynamic asset cards and glassmorphism.
 
 - **Developer Experience:**

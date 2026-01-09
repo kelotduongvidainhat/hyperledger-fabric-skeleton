@@ -233,8 +233,8 @@ func main() {
 			fullID := fmt.Sprintf("%s::%s", org, username)
 
 			var assets []models.Asset
-			// Logic: Show if (PUBLIC OR Owner) AND NOT DELETED
-			err := database.Where("(UPPER(view) = 'PUBLIC' OR owner_id = ?) AND status != 'DELETED'", fullID).Find(&assets).Error
+			// Logic: Show if (PUBLIC OR Owner OR ProposedOwner) AND NOT DELETED
+			err := database.Where("(UPPER(view) = 'PUBLIC' OR owner_id = ? OR proposed_owner_id = ?) AND status != 'DELETED'", fullID, fullID).Find(&assets).Error
 			if err != nil {
 				return c.Status(500).SendString("Database error: " + err.Error())
 			}
@@ -317,9 +317,9 @@ func main() {
 				return c.Status(404).JSON(fiber.Map{"error": "Asset not found"})
 			}
 
-			// Privacy Check
+			// Privacy Check: Allow if Public, Owner, or Proposed Owner (Recipient)
 			isPublic := strings.ToUpper(asset.View) == "PUBLIC"
-			if !isPublic && asset.OwnerID != fullID {
+			if !isPublic && asset.OwnerID != fullID && asset.ProposedOwnerID != fullID {
 				return c.Status(403).JSON(fiber.Map{"error": "Private asset access denied"})
 			}
 			return c.JSON(asset)
@@ -354,6 +354,46 @@ func main() {
 		return c.JSON(asset)
 	})
 
+	// Blockchain Verification Route (Direct Ledger access)
+	api.Get("/:id/blockchain", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		role := c.Locals("role").(string)
+		username := c.Locals("user").(string)
+		org := c.Locals("org").(string)
+		fullID := fmt.Sprintf("%s::%s", org, username)
+
+		// 1. Permission Check (Same as Detail)
+		if role != "admin" {
+			var asset models.Asset
+			if err := database.Where("id = ?", id).First(&asset).Error; err != nil {
+				return c.Status(404).JSON(fiber.Map{"error": "Asset not found in off-chain database"})
+			}
+			isPublic := strings.ToUpper(asset.View) == "PUBLIC"
+			if !isPublic && asset.OwnerID != fullID && asset.ProposedOwnerID != fullID {
+				return c.Status(403).JSON(fiber.Map{"error": "Access to blockchain data restricted for this asset"})
+			}
+		}
+
+		// 2. Fetch directly from Hyperledger Fabric
+		gw, contract, err := getContract(c)
+		if err != nil {
+			return c.Status(401).SendString(err.Error())
+		}
+		defer gw.Close()
+
+		result, err := contract.EvaluateTransaction("ReadAsset", id)
+		if err != nil {
+			return c.Status(404).SendString("Blockchain Read Error: " + err.Error())
+		}
+
+		// Return raw unmarshaled LedgerValue
+		var val models.LedgerValue
+		if err := json.Unmarshal(result, &val); err != nil {
+			return c.Type("json").Send(result)
+		}
+		return c.JSON(val)
+	})
+
 	api.Get("/:id/history", func(c *fiber.Ctx) error {
 		id := c.Params("id")
 		role := c.Locals("role").(string)
@@ -367,8 +407,8 @@ func main() {
 			if err := database.Where("id = ?", id).First(&asset).Error; err != nil {
 				return c.Status(404).JSON(fiber.Map{"error": "Asset not found"})
 			}
-			if asset.OwnerID != fullID {
-				return c.Status(403).JSON(fiber.Map{"error": "Provenance history is restricted to the owner or administrators."})
+			if asset.OwnerID != fullID && asset.ProposedOwnerID != fullID {
+				return c.Status(403).JSON(fiber.Map{"error": "Provenance history is restricted to the owner, proposed owner, or administrators."})
 			}
 		}
 

@@ -34,6 +34,7 @@ docker cp chaincode/packaging/basic.tar.gz cli:/opt/gopath/src/github.com/hyperl
 # Run deployment
 docker exec cli ./scripts/deploy-caas.sh
 ```
+*Note: The script installs, approves, commits, and initializes the ledger. If you see 'Chaincode already installed', it means deployment was already attempted.*
 
 ---
 
@@ -49,9 +50,9 @@ docker exec cli ./scripts/update-anchor-peers.sh
 ## 🌐 Step 4: Access the Application
 The entire stack is now running in Docker. You can access the interfaces immediately:
 
-- **Frontend UI**: [http://localhost:5173](http://localhost:5173)
-- **Backend API**: [http://localhost:3000](http://localhost:3000)
-- **IPFS Gateway**: [http://localhost:8080](http://localhost:8080)
+- **Frontend UI**: [http://localhost:5173](http://localhost:5173) (Asset Explorer)
+- **Backend API**: [http://localhost:3000](http://localhost:3000) (REST Entrypoint)
+- **IPFS Gateway**: [http://localhost:8080](http://localhost:8080) (Decentralized Images)
 
 ### Managing Services
 If you make code changes, you can rebuild specific services without a full reset:
@@ -65,20 +66,24 @@ docker-compose -f network/docker-compose.yaml up -d --build frontend
 
 ---
 
+## 🏗️ How it Works: Identity & CA
+This project uses a **Hybrid CA Interaction** model:
+- **Registration**: The Backend uses `docker exec` to trigger `fabric-ca-client` directly inside the CA containers. This avoids complex TLS certificate mismatches.
+- **Persistence**: User identities are stored as standard Fabric Wallet files in `backend/wallet/`. 
+- **Volumes**: Mounting `/var/run/docker.sock` to the Backend container is required for this orchestration.
+
 ---
 
 ## 📊 Step 6: Initialize Test Data (Optional)
 Populate the network with test users and assets for both organizations.
 
 ```bash
-# Ensure backend is running in another terminal
-# Initialize Org1 (10 users)
-./scripts/init-data.sh
-
-# Initialize Org2 (1 Admin + 5 users)
-./scripts/init-org2.sh
+# Ensure backend is running and healthy
+./scripts/init-data.sh    # Org1 Setup
+./scripts/init-org2.sh    # Org2 Setup
 ```
-*These scripts automate registration, admin approval, and asset creation.*
+
+---
 
 ---
 
@@ -115,5 +120,11 @@ curl -X POST "http://localhost:3000/assets" \
 
 ## 🔍 Troubleshooting
 - **Endorsement Errors?** Ensure Step 3 (Anchor Peers) was completed.
-- **CA Connection Refused?** Check if `ca_org1` is healthy (`docker ps`) and that you are using `https` in `backend/main.go`.
-- **Permission Denied on Cleanup?** Always use `sudo` for `fresh-start.sh` if volumes were created by root.
+- **CA Connection Refused?** If `docker logs backend` shows "connection refused" to `ca_org1`, wait 5 seconds and `docker-compose -f network/docker-compose.yaml restart backend`.
+- **Docker Permission Errors?** Ensure your user is in the `docker` group or run commands with `sudo`.
+- **Permission Denied on Cleanup?** The Blockchain volumes are created by `root` inside containers. `fresh-start.sh` requires `sudo` to wipe them.
+
+## 🚀 Next Steps
+1. **Explore the Gallery**: Check how assets are displayed with their IPFS CIDs.
+2. **Transfer Assets**: Try transferring an asset between Org1 and Org2 users.
+3. **Database Sync**: Use the "Sync" button in the Admin Dashboard to reconcile ledger data with PostgreSQL.

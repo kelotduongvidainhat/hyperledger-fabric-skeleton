@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { fetchAssets, fetchAssetById, fetchHistory, proposeTransfer, acceptTransfer, updateAssetView, deleteAsset } from '../api/client';
-import { ArrowLeft, ArrowRight, CheckCircle, Shield, History, Eye, EyeOff, Trash2, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { fetchAssets, fetchAssetById, fetchHistory, proposeTransfer, acceptTransfer, updateAssetView, deleteAsset, fetchBlockchainAsset } from '../api/client';
+import { ArrowLeft, ArrowRight, CheckCircle, Shield, History, Eye, EyeOff, Trash2, ExternalLink, Link as LinkIcon, Database, Verified } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const AssetDetails = () => {
@@ -12,6 +12,8 @@ const AssetDetails = () => {
     const [asset, setAsset] = useState(null);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [blockchainData, setBlockchainData] = useState(null);
+    const [showBlockchainModal, setShowBlockchainModal] = useState(false);
 
     const isFromAdmin = location.state?.from === 'admin';
     const userFullID = user ? `${user.org}::${user.username}` : '';
@@ -84,6 +86,19 @@ const AssetDetails = () => {
             navigate(isFromAdmin ? "/admin/assets" : "/");
         } catch (err) {
             alert("Deletion failed: " + (err.response?.data || err.message));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleVerifyBlockchain = async () => {
+        setActionLoading(true);
+        try {
+            const data = await fetchBlockchainAsset(id);
+            setBlockchainData(data);
+            setShowBlockchainModal(true);
+        } catch (err) {
+            alert("Verification Failed: " + (err.response?.data || err.message));
         } finally {
             setActionLoading(false);
         }
@@ -241,7 +256,16 @@ const AssetDetails = () => {
                 <div>
                     <div className="flex justify-between items-start">
                         <div>
-                            <h1 className="text-4xl font-serif font-bold text-ink-900 mb-2">{asset.name}</h1>
+                            <div className="flex items-center gap-3 mb-2">
+                                <h1 className="text-4xl font-serif font-bold text-ink-900 m-0">{asset.name}</h1>
+                                <button
+                                    onClick={handleVerifyBlockchain}
+                                    title="Verify on Blockchain"
+                                    className="p-1.5 rounded-full bg-parchment-200 text-bronze hover:bg-bronze hover:text-white transition-all shadow-sm"
+                                >
+                                    <Shield className="w-5 h-5" />
+                                </button>
+                            </div>
                             <span className="font-mono text-sm bg-parchment-200 px-2 py-1 rounded text-ink-900/60">{asset.ID}</span>
                         </div>
                         <div className="text-right">
@@ -285,6 +309,73 @@ const AssetDetails = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Blockchain Data Modal */}
+            {showBlockchainModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[75vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 border-b border-ink-900/10 flex items-center justify-between bg-parchment-50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-bronze/10 rounded-lg">
+                                    <Verified className="text-bronze w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h2 className="font-serif font-bold text-xl text-ink-900">Blockchain Verification</h2>
+                                    <p className="text-xs text-ink-900/50">Direct "Ground Truth" Read from Hyperledger Fabric</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowBlockchainModal(false)}
+                                className="text-ink-900/40 hover:text-ink-900 text-2xl font-light"
+                            >
+                                &times;
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-5 font-mono text-xs">
+                            <div className="mb-4 p-4 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-3">
+                                <CheckCircle className="text-emerald-500 shrink-0" />
+                                <div className="text-emerald-900">
+                                    <p className="font-bold">Cryptographically Verified</p>
+                                    <p className="text-[10px] opacity-70">The record below was fetched directly from the immutable ledger using your organization certificate.</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="p-4 bg-ink-900 rounded-xl text-ink-50 overflow-x-auto shadow-inner">
+                                    <pre className="m-0">{JSON.stringify(blockchainData, null, 2)}</pre>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="p-3 bg-parchment-100 rounded border border-ink-900/5">
+                                        <div className="text-[9px] uppercase tracking-tighter text-ink-900/40 mb-1">Chaincode ID</div>
+                                        <div className="font-bold truncate text-bronze">basic:1.0</div>
+                                    </div>
+                                    <div className="p-3 bg-parchment-100 rounded border border-ink-900/5">
+                                        <div className="text-[9px] uppercase tracking-tighter text-ink-900/40 mb-1">Fetch Time</div>
+                                        <div className="font-bold truncate text-bronze">{new Date().toLocaleString()}</div>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 rounded-lg bg-parchment-100 border border-ink-900/10 grayscale-[30%]">
+                                    <p className="font-serif text-[13px] text-ink-900/70 italic leading-relaxed text-center">
+                                        "This ledger entry serves as the single source of truth for the provenance and ownership of {asset.name}."
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-parchment-50 border-t border-ink-900/10 text-center">
+                            <button
+                                onClick={() => setShowBlockchainModal(false)}
+                                className="px-8 py-2 bg-ink-900 text-white rounded-full hover:bg-ink-800 transition-colors font-bold text-sm"
+                            >
+                                Re-seal Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

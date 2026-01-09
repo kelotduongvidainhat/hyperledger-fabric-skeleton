@@ -25,6 +25,11 @@ export const fetchAssetById = async (id) => {
     return response.data;
 };
 
+export const fetchBlockchainAsset = async (id) => {
+    const response = await api.get(`/assets/${id}/blockchain`);
+    return response.data;
+};
+
 export const createAsset = async (asset) => {
     const response = await api.post('/assets', asset);
     return response.data;

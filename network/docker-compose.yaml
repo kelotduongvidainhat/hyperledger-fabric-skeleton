@@ -279,9 +279,9 @@ services:
       dockerfile: Dockerfile
     environment:
       - CHAINCODE_SERVER_ADDRESS=0.0.0.0:9999
-      # CHAINCODE_ID will be injected by deploy-caas.sh
-      - CHAINCODE_ID=${CHAINCODE_ID}
-      - CORE_CHAINCODE_ID_NAME=${CHAINCODE_ID}
+      # Determinstic chaincode CID for CaaS in dev
+      - CHAINCODE_ID=${CHAINCODE_ID:-basic_1.0:c12e0f3418f6a6cc9a3f7afbb5f57ea7f26067c91b8b6b3d04f02ce23cab52ca}
+      - CORE_CHAINCODE_ID_NAME=${CHAINCODE_ID:-basic_1.0:c12e0f3418f6a6cc9a3f7afbb5f57ea7f26067c91b8b6b3d04f02ce23cab52ca}
     ports:
       - "9999:9999"
     networks:

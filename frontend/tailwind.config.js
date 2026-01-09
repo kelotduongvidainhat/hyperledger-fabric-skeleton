@@ -14,6 +14,7 @@ export default {
                     300: '#D9CDB1',
                 },
                 ink: {
+                    50: '#F5F5F4',
                     800: '#3E2723', // Sepia
                     900: '#2D2A26', // Charcoal
                 },
