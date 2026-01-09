@@ -49,9 +49,11 @@ This roadmap outlines the future development and milestones for the Ownership Re
     - [x] Decouple authorization logic from the Backend into a dedicated OPA service.
     - [x] Implement `rego` policies for asset lifecycle (e.g., specific transfer window rules).
     - [x] Centralize "Who can do what" management across the entire network.
-- [ ] **Object Storage (MinIO)**:
-    - Secondary storage for larger documents or metadata that doesn't fit on IPFS.
-    - S3-compatible integration for legacy support.
+- [x] **Object Storage (MinIO)**:
+    - [x] Secondary storage for supporting documentation and high-performance image delivery.
+    - [x] Backend: Integrated MinIO Go SDK for S3-compatible operations.
+    - [x] Frontend: Implementation of Pre-signed URLs for secure, authenticated media access.
+    - [x] UI: Secure "View" vs "Download" options for asset attachments.
 - [ ] **Private Data Collections (PDC)**:
     - Update Chaincode to support private pricing or metadata that is shared only between Buyer and Seller, not the whole network.
 - [ ] **Complex Transfer Logic**:

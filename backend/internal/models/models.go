@@ -16,6 +16,15 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type AssetAttachment struct {
+	FileName    string `json:"file_name"`
+	FileSize    int64  `json:"file_size"`
+	FileHash    string `json:"file_hash"`
+	IpfsCID     string `json:"ipfs_cid"`
+	StoragePath string `json:"storage_path"`
+	StorageType string `json:"storage_type"`
+}
+
 type Asset struct {
 	ID              string    `gorm:"primaryKey" json:"ID"`
 	Name            string    `json:"name"`
@@ -24,8 +33,9 @@ type Asset struct {
 	ProposedOwnerID string    `json:"proposedOwnerId"`
 	ImageURL        string    `json:"imageUrl"`
 	ImageHash       string    `json:"imageHash"`
-	Status          string    `json:"status"`
-	View            string    `json:"view"`
+	Status          string          `json:"status"`
+	View            string          `json:"view"`
+	Attachment      AssetAttachment `gorm:"embedded;embeddedPrefix:attach_" json:"attachment"`
 	// Metadata (Flattened for DB)
 	LastUpdatedBy string    `json:"lastUpdatedBy"`
 	LastUpdatedAt time.Time `json:"lastUpdatedAt"`

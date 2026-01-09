@@ -53,30 +53,38 @@ sequenceDiagram
     API-->>Admin: Sync Complete (Count: N)
 ```
 
-## 3. Asset Lifecycle (Creation & Sync)
-When a user creates an asset, it is written to the blockchain first. The database is updated via the asynchronous Event Listener.
+## 3. Asset Lifecycle (Dual Storage & On-Chain)
+When a user creates an asset, the backend orchestrates a dual-upload to both IPFS (for permanence) and MinIO (for fast delivery) before committing the registry record to the blockchain.
 
 ```mermaid
 sequenceDiagram
     participant User as User Browser
     participant API as Backend (Fiber)
+    participant Storage as Storage (MinIO + IPFS)
     participant Fabric as Chaincode (Go)
     participant Listener as Event Listener (Go Routine)
     participant DB as PostgreSQL
 
     User->>API: POST /assets (CreateAsset)
-    API->>OPA: CheckAuthorization(user, role...)
-    OPA-->>API: Result: ALLOW
-    API->>Fabric: SubmitTransaction("CreateAsset", id, name...)
+    API->>API: Process Form Data
+    
+    par Dual Storage Upload
+        API->>Storage: PUSH to MinIO (Performance)
+        API->>Storage: PUSH to IPFS (Provenance)
+    end
+    
+    Storage-->>API: returns {StoragePath, IpfsCID}
+    
+    API->>Fabric: SubmitTransaction("CreateAsset", {..., StoragePath, IpfsCID})
     Fabric->>Fabric: Commit to Ledger & Emit EVENT
     Fabric-->>API: Success
-    API-->>User: "Asset Created"
+    API-->>User: "Asset Registered"
     
     Note over Fabric, Listener: Asynchronous Event Notification
     
     Fabric-))Listener: ChaincodeEvent (com.own.registry:AssetCreated)
     Listener->>API: Process Event Payload
-    Listener->>DB: Save to assets table
+    Listener->>DB: UPSERT Registry Cache (assets table)
     DB-->>Listener: Persisted
 ```
 

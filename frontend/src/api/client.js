@@ -113,15 +113,20 @@ export const deleteAccount = async () => {
     return response.data;
 };
 
-export const uploadToIPFS = async (file) => {
+export const uploadToStorage = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await api.post('/api/ipfs/upload', formData, {
+    const response = await api.post('/api/storage/upload', formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },
     });
-    return response.data;
+    return response.data; // AssetAttachment object
+};
+
+export const fetchStorageURL = async (objectName, download = false) => {
+    const response = await api.get(`/api/storage/url/${objectName}${download ? '?download=true' : ''}`);
+    return response.data.url;
 };
 
 export default api;

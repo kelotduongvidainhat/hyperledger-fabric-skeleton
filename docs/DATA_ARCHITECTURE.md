@@ -25,12 +25,21 @@ erDiagram
         string Description "Details"
         string OwnerID FK "Custodian ID (Format: OrgMSP::Username)"
         string ProposedOwnerID FK "Recipient for Pending Transfer (Format: OrgMSP::Username)"
-        string ImageURL "Link to external file"
-        string ImageHash "Integrity Check (SHA256/IPFS)"
+        string ImageURL "MinIO Storage Path for main artifact"
+        string ImageHash "IPFS CID for main artifact (Provenance)"
         enum Status "ACTIVE | FROZEN | DELETED | PENDING_TRANSFER"
         enum View "PUBLIC | PRIVATE"
-        string LastUpdatedBy "UserID of modifier (or _ADMIN)"
-        timestamp LastUpdatedAt "Time of modification (Deterministic)"
+        Attachment Attachment "Complex field for supporting evidence"
+        string LastUpdatedBy "UserID of modifier"
+        timestamp LastUpdatedAt "Time of modification"
+    }
+    ASSET_ATTACHMENT {
+        string FileName "Original Name"
+        int64 FileSize "Size in Bytes"
+        string FileHash "SHA256 Content Hash"
+        string IpfsCID "Decentralized Provenance Link"
+        string StoragePath "MinIO Object Name"
+        string StorageType "minio | ipfs"
     }
 ```
 
@@ -47,10 +56,18 @@ erDiagram
   "Description": "Notarized contract",
   "OwnerID": "Org1MSP::charlie",
   "ProposedOwnerID": "",
-  "ImageURL": "https://storage.example.com/asset101.jpg",
-  "ImageHash": "e3b0c44298fc1c149afbf...",
+  "ImageURL": "1672534800_portrait.jpg",
+  "ImageHash": "QmcJdniiSKMp5az3fJvkbJTANd7bFtDoUkov3a8pkByWkv",
   "Status": "ACTIVE", 
   "View": "PUBLIC",
+  "Attachment": {
+    "file_name": "evidence_doc.pdf",
+    "file_size": 102400,
+    "file_hash": "e3b0c44298fc1c149afbf...",
+    "ipfs_cid": "QmZ...",
+    "storage_path": "1672534801_evidence_doc.pdf",
+    "storage_type": "minio"
+  },
   "LastUpdatedBy": "Org1MSP::charlie",
   "LastUpdatedAt": "2023-01-01T12:00:00Z"
 }
@@ -99,22 +116,36 @@ Each folder contains:
 | `description` | TEXT | |
 | `owner_id` | VARCHAR(128) | Indexed |
 | `proposed_owner_id` | VARCHAR(128) | |
-| `image_url` | TEXT | |
-| `image_hash` | VARCHAR(128) | |
+| `image_url` | TEXT | MinIO Object Name |
+| `image_hash` | VARCHAR(128) | IPFS CID |
+| `file_name` | VARCHAR(255) | Attachment Name (Flattened) |
+| `file_size` | BIGINT | Attachment Size (Flattened) |
+| `file_hash` | VARCHAR(128) | Attachment Hash (Flattened) |
+| `ipfs_cid` | TEXT | Attachment IPFS CID (Flattened) |
+| `storage_path` | TEXT | Attachment MinIO Path (Flattened) |
+| `storage_type` | VARCHAR(20) | Attachment Storage Type (Flattened) |
 | `status` | VARCHAR(20) | |
 | `view_policy` | TEXT | |
 | `last_updated_by` | VARCHAR(128) | |
 | `last_updated_at` | TIMESTAMP | |
 | `updated_at` | TIMESTAMP | |
 
-## 4. Digital Media Strategy (IPFS)
+## 4. Dual-Storage Strategy (IPFS + MinIO)
 
-**Storage**: All media assets MUST be stored on **IPFS** (InterPlanetary File System) to ensure decentralized availability and immutability.
+The system employs a unified **Storage-First** approach to handle digital media and supporting evidence, ensuring both decentralization (provenance) and high performance (delivery).
 
-1.  **Upload**: User uploads file to Backend.
-2.  **Pin**: Backend creates an IPFS node or uses a pinning service (e.g., Pinata) to **pin** the file.
-3.  **CID**: IPFS returns a Content Identifier (CID) (e.g., `QmX...`).
-4.  **Transact**: The CID is stored On-Chain as the `ImageHash` (serving as both Link and Hash).
+### Storage Sinks
+1.  **IPFS (InterPlanetary File System)**: Used as the **Immutability Sink**. All files are pinned to IPFS to generate a cryptographically verifiable Content Identifier (CID). This CID is stored on-chain to provide permanent provenance, even if the primary storage fails.
+2.  **MinIO (S3-Compatible)**: Used as the **Performance Sink**. Files are stored in a private MinIO bucket to support high-speed media delivery and secure, time-limited downloads via **Pre-signed URLs**.
+
+### Workflow
+1.  **Unified Upload**: The user uploads an artifact image or document to the Backend.
+2.  **Parallel Persist**: The Backend simultaneously pushes the byte stream to both an IPFS node and the MinIO `assets` bucket.
+3.  **Metadata Generation**: The system calculates a SHA-256 hash and returns an `AssetAttachment` object containing both the `ipfs_cid` and the `storage_path`.
+4.  **On-Chain Registry**: These values are registered as immutable attributes of the asset on the Hyperledger Fabric ledger.
+5.  **Secure Resolution**:
+    *   **Main Media**: Served via MinIO for speed. If MinIO is unreachable, the UI falls back to an IPFS gateway.
+    *   **Evidence**: Downloadable via a **MinIO Pre-signed URL** generated specifically for the authenticated requester, ensuring that sensitive documents are not public.
 
 ## 5. Asset History (Provenance)
 

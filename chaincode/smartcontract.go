@@ -44,6 +44,15 @@ type SmartContract struct {
 	contractapi.Contract
 }
 
+type AssetAttachment struct {
+	FileName    string `json:"file_name"`
+	FileSize    int64  `json:"file_size"`
+	FileHash    string `json:"file_hash"` // SHA-256 of the file
+	IpfsCID     string `json:"ipfs_cid"`
+	StoragePath string `json:"storage_path"`
+	StorageType string `json:"storage_type"` // Example: "minio", "s3", "local"
+}
+
 // Asset describes basic details of what makes up a simple asset (Lower-case tags for standard JSON)
 type Asset struct {
 	ID              string `json:"ID"` // Keep ID as ID for key consistency
@@ -55,6 +64,7 @@ type Asset struct {
 	ImageHash       string `json:"imageHash"`
 	Status          string `json:"status"` 
 	View            string `json:"view"` 
+	Attachment      AssetAttachment `json:"attachment"`
 }
 
 // AuditMetadata contains the metadata for a state change
@@ -127,7 +137,8 @@ func (s *SmartContract) getClientFullIdentifier(ctx contractapi.TransactionConte
 }
 
 // CreateAsset issues a new asset to the world state
-func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, name string, description string, imageURL string, imageHash string, view string) error {
+func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, name string, description string, imageURL string, imageHash string, view string, 
+	fileName string, fileSize int64, fileHash string, ipfsCID string, storagePath string, storageType string) error {
 	exists, err := s.AssetExists(ctx, id)
 	if err != nil {
 		return err
@@ -154,6 +165,14 @@ func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface,
 		ImageHash:       imageHash,
 		Status:          ActiveStatus,
 		View:            view,
+		Attachment: AssetAttachment{
+			FileName:    fileName,
+			FileSize:    fileSize,
+			FileHash:    fileHash,
+			IpfsCID:     ipfsCID,
+			StoragePath: storagePath,
+			StorageType: storageType,
+		},
 	}
 
 	ledgerValue := LedgerValue{

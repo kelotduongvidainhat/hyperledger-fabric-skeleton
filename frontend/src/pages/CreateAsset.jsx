@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { createAsset, uploadToIPFS } from '../api/client';
+import { createAsset, uploadToStorage, fetchStorageURL } from '../api/client';
 import { useNavigate } from 'react-router-dom';
-import { Upload, X, CheckCircle, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, CheckCircle, Loader2, Image as ImageIcon, FileText, Paperclip } from 'lucide-react';
 
 const CreateAsset = () => {
     const navigate = useNavigate();
@@ -11,27 +11,64 @@ const CreateAsset = () => {
         id: `artifact_${Date.now()}`,
         name: '',
         desc: '',
-        image_url: '',
-        image_hash: '',
-        view: 'Public'
+        image_url: '', // MinIO path
+        image_hash: '', // IPFS CID
+        view: 'Public',
+        // Attachment
+        file_name: '',
+        file_size: 0,
+        file_hash: '',
+        ipfs_cid: '',
+        storage_path: '',
+        storage_type: ''
+    });
+    const [previews, setPreviews] = useState({
+        image: '',
+        doc: ''
     });
 
-    const handleFileChange = async (e) => {
+    const handleImageChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setUploading(true);
         try {
-            const result = await uploadToIPFS(file);
-            // Result contains { cid, url, message }
+            const result = await uploadToStorage(file);
             setForm(prev => ({
                 ...prev,
-                image_url: result.url, // ipfs://CID
-                image_hash: result.cid
+                image_url: result.storage_path,
+                image_hash: result.ipfs_cid
             }));
+
+            // Get pre-signed URL for preview
+            const url = await fetchStorageURL(result.storage_path);
+            setPreviews(p => ({ ...p, image: url }));
         } catch (err) {
-            console.error("Upload failed", err);
-            alert("IPFS upload failed: " + (err.response?.data?.error || err.message));
+            alert("Image upload failed: " + (err.response?.data?.error || err.message));
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleDocChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const result = await uploadToStorage(file);
+            setForm(prev => ({
+                ...prev,
+                file_name: result.file_name,
+                file_size: result.file_size,
+                file_hash: result.file_hash,
+                ipfs_cid: result.ipfs_cid,
+                storage_path: result.storage_path,
+                storage_type: result.storage_type
+            }));
+            setPreviews(p => ({ ...p, doc: file.name }));
+        } catch (err) {
+            alert("Document upload failed: " + (err.response?.data?.error || err.message));
         } finally {
             setUploading(false);
         }
@@ -107,24 +144,27 @@ const CreateAsset = () => {
                     </div>
 
                     <div className="space-y-6">
-                        {/* Image / IPFS Section */}
+                        {/* Image Section */}
                         <div>
-                            <label className="block text-[10px] uppercase font-bold text-ink-900/40 mb-2 tracking-widest">Decentralized Storage (IPFS)</label>
+                            <label className="block text-[10px] uppercase font-bold text-ink-900/40 mb-2 tracking-widest">Display Image (MinIO/IPFS)</label>
 
-                            <div className={`relative h-56 rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden
-                                ${form.image_url ? 'border-bronze bg-parchment-50' : 'border-ink-900/10 bg-white hover:border-bronze/50'}`}>
+                            <div className={`relative h-48 rounded-xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden
+                                ${previews.image ? 'border-bronze bg-parchment-50' : 'border-ink-900/10 bg-white hover:border-bronze/50'}`}>
 
-                                {form.image_url ? (
+                                {previews.image ? (
                                     <>
                                         <img
-                                            src={form.image_url.replace('ipfs://', 'https://ipfs.io/ipfs/')}
+                                            src={previews.image}
                                             alt="Preview"
                                             className="absolute inset-0 w-full h-full object-cover opacity-90"
                                         />
                                         <div className="absolute inset-0 bg-ink-900/20 group hover:bg-ink-900/40 transition-all flex items-center justify-center">
                                             <button
                                                 type="button"
-                                                onClick={() => setForm({ ...form, image_url: '', image_hash: '' })}
+                                                onClick={() => {
+                                                    setForm({ ...form, image_url: '', image_hash: '' });
+                                                    setPreviews({ ...previews, image: '' });
+                                                }}
                                                 className="bg-white/90 text-wax-red p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-xl"
                                             >
                                                 <X className="w-5 h-5" />
@@ -134,35 +174,65 @@ const CreateAsset = () => {
                                 ) : (
                                     <div className="p-6 text-center">
                                         {uploading ? (
-                                            <div className="flex flex-col items-center gap-3">
-                                                <Loader2 className="w-10 h-10 text-bronze animate-spin" />
-                                                <span className="text-xs font-bold text-ink-900/60 uppercase">Uploading to IPFS...</span>
-                                            </div>
+                                            <Loader2 className="w-10 h-10 text-bronze animate-spin mx-auto" />
                                         ) : (
                                             <>
                                                 <Upload className="w-10 h-10 text-ink-900/20 mb-3 mx-auto" />
-                                                <p className="text-xs text-ink-900/40 mb-4 font-serif italic">Drag and drop file or click to select</p>
                                                 <label className="cursor-pointer px-4 py-2 bg-bronze text-white text-[10px] font-bold uppercase rounded tracking-widest hover:bg-ink-800 transition-colors shadow-sm">
-                                                    Select Artifact
-                                                    <input type="file" className="hidden" onChange={handleFileChange} accept="image/*" />
+                                                    Select Image
+                                                    <input type="file" className="hidden" onChange={handleImageChange} accept="image/*" />
                                                 </label>
                                             </>
                                         )}
                                     </div>
                                 )}
                             </div>
-
-                            {form.image_hash && (
-                                <div className="mt-3 p-3 bg-parchment-100 rounded border border-ink-900/5 flex items-center gap-3">
-                                    <CheckCircle size={14} className="text-green-600" />
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-[8px] uppercase font-bold text-ink-900/40 tracking-wider">Content ID (CID)</div>
-                                        <div className="text-[10px] font-mono text-bronze truncate">{form.image_hash}</div>
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
+                        {/* Document Section */}
+                        <div>
+                            <label className="block text-[10px] uppercase font-bold text-ink-900/40 mb-2 tracking-widest">Supporting Document (Immutable)</label>
+
+                            <div className={`relative p-4 rounded-xl border-2 border-dashed transition-all 
+                                ${previews.doc ? 'border-green-500/50 bg-green-50/10' : 'border-ink-900/10 bg-white hover:border-bronze/50'}`}>
+
+                                {previews.doc ? (
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <FileText className="text-bronze shrink-0" />
+                                            <span className="text-xs font-bold text-ink-900 truncate">{previews.doc}</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setForm({ ...form, file_name: '', file_size: 0, file_hash: '', ipfs_cid: '', storage_path: '', storage_type: '' });
+                                                setPreviews({ ...previews, doc: '' });
+                                            }}
+                                            className="text-ink-900/30 hover:text-wax-red"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4">
+                                        <label className="cursor-pointer flex flex-col items-center gap-2 group">
+                                            <Paperclip className="w-8 h-8 text-ink-900/10 group-hover:text-bronze transition-colors" />
+                                            <span className="text-[10px] uppercase font-bold text-ink-900/40 tracking-widest">Attach Proof</span>
+                                            <input type="file" className="hidden" onChange={handleDocChange} />
+                                        </label>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        {form.image_hash && (
+                            <div className="mt-3 p-3 bg-parchment-100 rounded border border-ink-900/5 flex items-center gap-3">
+                                <CheckCircle size={14} className="text-green-600" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-[8px] uppercase font-bold text-ink-900/40 tracking-wider">Content ID (CID)</div>
+                                    <div className="text-[10px] font-mono text-bronze truncate">{form.image_hash}</div>
+                                </div>
+                            </div>
+                        )}
                         <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-900/5 flex gap-3">
                             <ImageIcon className="text-blue-900/40 shrink-0" size={16} />
                             <p className="text-[10px] text-blue-900/60 leading-relaxed font-serif italic">

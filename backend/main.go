@@ -6,6 +6,7 @@ import (
 	"backend/internal/fabric"
 	"backend/internal/db"
 	"backend/internal/models"
+	"backend/internal/storage"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -134,14 +135,41 @@ func main() {
 		DB:         database,
 	}
 
-	// 3. Setup IPFS Handler
+	// 4. Setup Storage Handler (IPFS + MinIO)
 	ipfsURL := os.Getenv("IPFS_URL")
 	if ipfsURL == "" {
 		ipfsURL = "localhost:5001"
 	}
 	sh := shell.NewShell(ipfsURL)
-	ipfsHandler := &api.IPFSHandler{
-		Shell: sh,
+
+	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
+	if minioEndpoint == "" {
+		minioEndpoint = "localhost:9000"
+	}
+	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
+	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
+	minioBucket := os.Getenv("MINIO_BUCKET")
+	if minioBucket == "" {
+		minioBucket = "assets"
+	}
+	minioUseSSL := os.Getenv("MINIO_USE_SSL") == "true"
+
+	minioStore, err := storage.NewMinIOStorage(minioEndpoint, minioAccessKey, minioSecretKey, minioBucket, minioUseSSL)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize MinIO: %v", err)
+	} else {
+		publicEndpoint := os.Getenv("MINIO_PUBLIC_ENDPOINT")
+		if publicEndpoint != "" {
+			err = minioStore.SetPublicEndpoint(publicEndpoint, minioAccessKey, minioSecretKey, minioUseSSL)
+			if err != nil {
+				log.Printf("Warning: Failed to set MinIO public endpoint: %v", err)
+			}
+		}
+	}
+
+	storageHandler := &api.StorageHandler{
+		MinIO: minioStore,
+		Ipfs:  sh,
 	}
 
 	// SETUP SERVER
@@ -184,8 +212,9 @@ func main() {
 	app.Post("/auth/logout", authHandler.Logout)
 	app.Delete("/auth/me", auth.Middleware(), authHandler.DeleteAccount)
 
-	// IPFS ROUTES
-	app.Post("/api/ipfs/upload", auth.Middleware(), ipfsHandler.Upload)
+	// STORAGE ROUTES
+	app.Post("/api/storage/upload", auth.Middleware(), storageHandler.Upload)
+	app.Get("/api/storage/url/:objectName", auth.Middleware(), storageHandler.GetURL)
 
 	// OPA MIDDLEWARE: Centralized AuthZ delegation
 	app.Use(func(c *fiber.Ctx) error {
@@ -318,6 +347,12 @@ func main() {
 			ImageURL    string `json:"image_url"`
 			ImageHash   string `json:"image_hash"`
 			View        string `json:"view"`
+			FileName    string `json:"file_name"`
+			FileSize    int64  `json:"file_size"`
+			FileHash    string `json:"file_hash"`
+			IpfsCID     string `json:"ipfs_cid"`
+			StoragePath string `json:"storage_path"`
+			StorageType string `json:"storage_type"`
 		}
 		req := new(CreateReq)
 		if err := c.BodyParser(req); err != nil {
@@ -330,7 +365,9 @@ func main() {
 		}
 		defer gw.Close()
 
-		_, err = contract.SubmitTransaction("CreateAsset", req.ID, req.Name, req.Description, req.ImageURL, req.ImageHash, req.View)
+
+		_, err = contract.SubmitTransaction("CreateAsset", req.ID, req.Name, req.Description, req.ImageURL, req.ImageHash, req.View,
+			req.FileName, fmt.Sprintf("%d", req.FileSize), req.FileHash, req.IpfsCID, req.StoragePath, req.StorageType)
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}

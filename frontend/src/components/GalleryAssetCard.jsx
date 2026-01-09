@@ -1,20 +1,44 @@
 import React from 'react';
-import { Globe, Clock, User } from 'lucide-react';
+import { fetchStorageURL } from '../api/client';
+import { Globe, Clock, User, Paperclip } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const GalleryAssetCard = ({ asset }) => {
+    const hasAttachment = asset.attachment && asset.attachment.file_name;
+    const [displayUrl, setDisplayUrl] = React.useState('');
+
+    React.useEffect(() => {
+        const getUrl = async () => {
+            if (asset.imageUrl) {
+                try {
+                    const url = await fetchStorageURL(asset.imageUrl);
+                    setDisplayUrl(url);
+                } catch (e) {
+                    if (asset.imageHash) setDisplayUrl(`https://ipfs.io/ipfs/${asset.imageHash}`);
+                }
+            }
+        };
+        getUrl();
+    }, [asset.imageUrl, asset.imageHash]);
     return (
         <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-ink-900/10 overflow-hidden group flex flex-col h-full">
             {/* Image Area */}
             <div className="h-48 bg-parchment-200 relative overflow-hidden flex items-center justify-center">
-                {asset.imageUrl ? (
+                {displayUrl ? (
                     <img
-                        src={asset.imageUrl.startsWith('ipfs://') ? asset.imageUrl.replace('ipfs://', 'https://ipfs.io/ipfs/') : asset.imageUrl}
+                        src={displayUrl}
                         alt={asset.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                 ) : (
                     <div className="text-ink-900/20 text-4xl font-serif">?</div>
+                )}
+
+                {/* Attachment Indicator */}
+                {hasAttachment && (
+                    <div className="absolute top-3 left-3 p-1.5 rounded-full bg-white/90 text-bronze shadow-sm backdrop-blur-md border border-ink-900/10">
+                        <Paperclip size={10} className="animate-bounce" />
+                    </div>
                 )}
 
                 {/* Public Badge */}

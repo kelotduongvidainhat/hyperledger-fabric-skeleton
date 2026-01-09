@@ -53,6 +53,7 @@ The entire stack is now running in Docker. You can access the interfaces immedia
 - **Frontend UI**: [http://localhost:5173](http://localhost:5173) (Asset Explorer)
 - **Backend API**: [http://localhost:3000](http://localhost:3000) (REST Entrypoint)
 - **IPFS Gateway**: [http://localhost:8080](http://localhost:8080) (Decentralized Images)
+- **MinIO Console**: [http://localhost:9001](http://localhost:9001) (Storage Management - admin/miniopass)
 
 ### Managing Services
 If you make code changes, you can rebuild specific services without a full reset:

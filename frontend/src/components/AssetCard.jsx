@@ -1,24 +1,37 @@
 import React from 'react';
-import { Shield, ArrowRightLeft, Clock } from 'lucide-react';
+
+import { fetchStorageURL } from '../api/client';
+import { Shield, ArrowRightLeft, Clock, Paperclip } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const AssetCard = ({ asset }) => {
     const isPending = asset.status === 'PENDING_TRANSFER';
     const isDeleted = asset.status === 'DELETED';
+    const hasAttachment = asset.attachment && asset.attachment.file_name;
 
-    // Resolve IPFS URL
-    const getDisplayImage = (url) => {
-        if (!url) return null;
-        return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
-    };
+    const [displayUrl, setDisplayUrl] = React.useState('');
+
+    React.useEffect(() => {
+        const getUrl = async () => {
+            if (asset.imageUrl) {
+                try {
+                    const url = await fetchStorageURL(asset.imageUrl);
+                    setDisplayUrl(url);
+                } catch (e) {
+                    if (asset.imageHash) setDisplayUrl(`https://ipfs.io/ipfs/${asset.imageHash}`);
+                }
+            }
+        };
+        getUrl();
+    }, [asset.imageUrl, asset.imageHash]);
 
     return (
         <div className={`bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-ink-900/10 overflow-hidden group flex flex-col h-full ${isDeleted ? 'opacity-60 grayscale' : ''}`}>
             {/* Image Area */}
             <div className="h-52 bg-parchment-200 relative overflow-hidden flex items-center justify-center">
-                {asset.imageUrl ? (
+                {displayUrl ? (
                     <img
-                        src={getDisplayImage(asset.imageUrl)}
+                        src={displayUrl}
                         alt={asset.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
                     />
@@ -31,12 +44,19 @@ const AssetCard = ({ asset }) => {
 
                 {/* Status Badge */}
                 <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-[9px] font-black tracking-widest uppercase border shadow-lg backdrop-blur-md ${asset.status === 'ACTIVE' ? 'bg-green-500/90 text-white border-green-400' :
-                        asset.status === 'PENDING_TRANSFER' ? 'bg-amber-500/90 text-white border-amber-400' :
-                            asset.status === 'FROZEN' ? 'bg-blue-600/90 text-white border-blue-400' :
-                                'bg-wax-red text-white border-red-400'
+                    asset.status === 'PENDING_TRANSFER' ? 'bg-amber-500/90 text-white border-amber-400' :
+                        asset.status === 'FROZEN' ? 'bg-blue-600/90 text-white border-blue-400' :
+                            'bg-wax-red text-white border-red-400'
                     }`}>
                     {(asset.status || 'UNKNOWN').replace('_', ' ')}
                 </div>
+
+                {/* Attachment Indicator */}
+                {hasAttachment && (
+                    <div className="absolute top-4 left-4 p-2 rounded-full bg-white/90 text-bronze shadow-lg backdrop-blur-md border border-ink-900/10">
+                        <Paperclip size={12} className="animate-bounce" />
+                    </div>
+                )}
 
                 <div className="absolute inset-0 bg-gradient-to-t from-ink-900/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>

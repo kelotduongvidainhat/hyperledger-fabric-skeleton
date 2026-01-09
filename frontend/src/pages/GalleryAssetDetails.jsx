@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { fetchAssetById, fetchHistory } from '../api/client';
-import { ArrowLeft, Globe, Shield, History, Clock, User, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { fetchAssetById, fetchHistory, fetchStorageURL } from '../api/client';
+import { ArrowLeft, Globe, Shield, History, Clock, User, ExternalLink, Link as LinkIcon, Paperclip, FileText, Download, Eye } from 'lucide-react';
 
 const GalleryAssetDetails = () => {
     const { id } = useParams();
@@ -9,6 +9,9 @@ const GalleryAssetDetails = () => {
     const [asset, setAsset] = useState(null);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [displayUrl, setDisplayUrl] = useState('');
+    const [attachmentUrl, setAttachmentUrl] = useState(''); // View URL
+    const [attachmentDownloadUrl, setAttachmentDownloadUrl] = useState('');
 
     useEffect(() => {
         loadData();
@@ -20,6 +23,28 @@ const GalleryAssetDetails = () => {
             const [a, h] = await Promise.all([fetchAssetById(id), fetchHistory(id)]);
             setAsset(a);
             setHistory(h);
+
+            // MinIO First Image Resolution
+            if (a.imageUrl) {
+                try {
+                    const url = await fetchStorageURL(a.imageUrl);
+                    setDisplayUrl(url);
+                } catch (e) {
+                    if (a.imageHash) setDisplayUrl(`https://ipfs.io/ipfs/${a.imageHash}`);
+                }
+            }
+
+            // MinIO First Attachment Resolution (View & Download)
+            if (a.attachment?.storage_path) {
+                try {
+                    const viewUrl = await fetchStorageURL(a.attachment.storage_path, false);
+                    const downloadUrl = await fetchStorageURL(a.attachment.storage_path, true);
+                    setAttachmentUrl(viewUrl);
+                    setAttachmentDownloadUrl(downloadUrl);
+                } catch (e) {
+                    console.error("Failed to fetch attachment URLs", e);
+                }
+            }
         } catch (err) {
             console.error("Error loading gallery artifact", err);
         } finally {
@@ -48,52 +73,84 @@ const GalleryAssetDetails = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         {/* Image Section */}
                         <div className="space-y-6">
-                            {/* Storage Abstraction */}
-                            {(() => {
-                                const sourceUrl = asset.imageUrl || '';
-                                const displayUrl = sourceUrl.startsWith('ipfs://')
-                                    ? sourceUrl.replace('ipfs://', 'https://ipfs.io/ipfs/')
-                                    : sourceUrl;
-
-                                return (
-                                    <>
-                                        <div className="group relative aspect-square bg-parchment-200 rounded-2xl border border-ink-900/10 overflow-hidden shadow-sm flex items-center justify-center">
-                                            {asset.imageUrl ? (
-                                                <a
-                                                    href={displayUrl}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="w-full h-full cursor-zoom-in"
-                                                >
-                                                    <img src={displayUrl} alt={asset.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                                                    <div className="absolute inset-0 bg-ink-900/0 group-hover:bg-ink-900/10 transition-all flex items-center justify-center">
-                                                        <ExternalLink className="text-white opacity-0 group-hover:opacity-100 transition-all" />
-                                                    </div>
-                                                </a>
-                                            ) : (
-                                                <div className="text-ink-900/20 text-6xl font-serif">?</div>
-                                            )}
+                            <div className="group relative aspect-square bg-parchment-200 rounded-2xl border border-ink-900/10 overflow-hidden shadow-sm flex items-center justify-center">
+                                {displayUrl ? (
+                                    <a
+                                        href={displayUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full h-full cursor-zoom-in"
+                                    >
+                                        <img src={displayUrl} alt={asset.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                        <div className="absolute inset-0 bg-ink-900/0 group-hover:bg-ink-900/10 transition-all flex items-center justify-center">
+                                            <ExternalLink className="text-white opacity-0 group-hover:opacity-100 transition-all" />
                                         </div>
+                                    </a>
+                                ) : (
+                                    <div className="text-ink-900/20 text-6xl font-serif">?</div>
+                                )}
+                            </div>
 
-                                        {sourceUrl.startsWith('ipfs://') && (
-                                            <div className="p-4 bg-white rounded-xl border border-ink-900/10 shadow-sm flex items-center justify-between">
-                                                <div className="flex items-center gap-2 overflow-hidden">
-                                                    <LinkIcon size={14} className="text-bronze shrink-0" />
-                                                    <span className="text-xs font-mono text-ink-900/40 truncate">{sourceUrl}</span>
-                                                </div>
-                                                <a
-                                                    href={displayUrl}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs font-bold text-bronze hover:underline shrink-0"
-                                                >
-                                                    VIEW CID
-                                                </a>
-                                            </div>
+                            {asset.imageHash && (
+                                <div className="p-4 bg-white rounded-xl border border-ink-900/10 shadow-sm flex items-center justify-between">
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <LinkIcon size={14} className="text-bronze shrink-0" />
+                                        <span className="text-xs font-mono text-ink-900/40 truncate">ipfs://{asset.imageHash}</span>
+                                    </div>
+                                    <a
+                                        href={`https://ipfs.io/ipfs/${asset.imageHash}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs font-bold text-bronze hover:underline shrink-0"
+                                    >
+                                        PROVENANCE
+                                    </a>
+                                </div>
+                            )}
+
+                            {/* Attachment Section */}
+                            {asset.attachment && asset.attachment.file_name && (
+                                <div className="bg-white p-6 rounded-xl border border-ink-900/10 shadow-sm space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Paperclip className="text-bronze w-5 h-5" />
+                                        <h4 className="font-serif font-bold text-md text-ink-900">Supporting Evidence</h4>
+                                    </div>
+
+                                    <div className="p-3 bg-parchment-50 rounded border border-ink-900/5 space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <FileText size={14} className="text-ink-900/40" />
+                                            <span className="text-xs font-bold text-ink-900 truncate">{asset.attachment.file_name}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-[10px] text-ink-900/60 uppercase font-bold tracking-tighter">
+                                            <div>Size: {(asset.attachment.file_size / 1024).toFixed(2)} KB</div>
+                                            <div>Type: {asset.attachment.storage_type}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        {attachmentUrl && (
+                                            <a
+                                                href={attachmentUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex-1 flex justify-center items-center gap-2 bg-parchment-200 text-ink-900 py-3 rounded-lg hover:bg-parchment-300 transition-all font-bold text-sm border border-ink-900/5 shadow-sm"
+                                                title="View in browser"
+                                            >
+                                                <Eye className="w-4 h-4" /> View
+                                            </a>
                                         )}
-                                    </>
-                                );
-                            })()}
+                                        {attachmentDownloadUrl && (
+                                            <a
+                                                href={attachmentDownloadUrl}
+                                                className="flex-1 flex justify-center items-center gap-2 bg-wax-red text-white py-3 rounded-lg hover:bg-ink-900 transition-all font-bold text-sm shadow-md"
+                                                title="Download to device"
+                                            >
+                                                <Download className="w-4 h-4" /> Download
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Info Section */}
