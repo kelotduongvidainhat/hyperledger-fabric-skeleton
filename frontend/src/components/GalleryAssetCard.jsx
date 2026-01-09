@@ -9,7 +9,7 @@ const GalleryAssetCard = ({ asset }) => {
             <div className="h-48 bg-parchment-200 relative overflow-hidden flex items-center justify-center">
                 {asset.imageUrl ? (
                     <img
-                        src={asset.imageUrl}
+                        src={asset.imageUrl.startsWith('ipfs://') ? asset.imageUrl.replace('ipfs://', 'https://ipfs.io/ipfs/') : asset.imageUrl}
                         alt={asset.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />

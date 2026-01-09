@@ -40,11 +40,15 @@ This roadmap outlines the future development and milestones for the Ownership Re
     - [x] **User**: Standard Asset Management (Create, Transfer, View Own Assets).
 - [x] **Event Monitoring**:
     - [x] Integrated real-time blockchain feed into the Admin Dashboard overview.
-- [ ] **Advanced Authentication**:
-    - Implement persistent sessions and secure token refresh.
+- [x] **Advanced Authentication**:
+    - [x] Implement persistent sessions and secure token refresh via HttpOnly cookies.
 - [ ] **Auditor View**: Advanced filtering and report generation.
 
 ## Phase 3: Advanced Features (Medium Term)
+- [ ] **Policy-as-Code (Open Policy Agent)**:
+    - [ ] Decouple authorization logic from the Backend into a dedicated OPA service.
+    - [ ] Implement `rego` policies for asset lifecycle (e.g., specific transfer window rules).
+    - [ ] Centralize "Who can do what" management across the entire network.
 - [ ] **Object Storage (MinIO)**:
     - Secondary storage for larger documents or metadata that doesn't fit on IPFS.
     - S3-compatible integration for legacy support.
@@ -55,6 +59,10 @@ This roadmap outlines the future development and milestones for the Ownership Re
     - Add "Escrow" functionality.
 
 ## Phase 4: Production Readiness (Long Term)
+- [ ] **API Gateway (Nginx)**:
+    - [ ] Implement a unified entry point (Port 80) for Frontend and Backend.
+    - [ ] Routing: `/api/*` to Backend, `/*` to Frontend.
+    - [ ] Configure Rate Limiting and SSL (Let's Encrypt placeholder).
 - [ ] **Kubernetes Deployment**:
     - Migrate from `docker-compose` to K8s (using Fabric Operator).
 - [ ] **Monitoring & Logging**:

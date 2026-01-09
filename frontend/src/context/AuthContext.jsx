@@ -11,30 +11,37 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (token) {
+        const checkSession = async () => {
             const savedUser = localStorage.getItem('username');
-            const savedRole = localStorage.getItem('role');
-            const savedOrg = localStorage.getItem('org');
             if (savedUser) {
-                setUser({ username: savedUser, org: savedOrg });
-                setRole(savedRole);
-                setIsAuthenticated(true);
+                try {
+                    // Try to refresh or verify session implicitly via cookies
+                    // Our interceptor in client.js will handle the actual refresh if 401
+                    // For now, we trust localStorage for UI state if cookies exist
+                    const savedRole = localStorage.getItem('role');
+                    const savedOrg = localStorage.getItem('org');
+                    setUser({ username: savedUser, org: savedOrg });
+                    setRole(savedRole);
+                    setIsAuthenticated(true);
+                } catch (err) {
+                    logout();
+                }
             }
-        }
-        setLoading(false);
-    }, [token]);
+            setLoading(false);
+        };
+        checkSession();
+    }, []);
 
     const login = async (username, password, org = "") => {
         try {
             const response = await api.post('/auth/login', { username, password, org });
-            const { token: newToken, username: newUsername, role: newRole, org: newOrg } = response.data;
+            const { username: newUsername, role: newRole, org: newOrg } = response.data;
 
-            localStorage.setItem('token', newToken);
+            // Store non-sensitive profile info for UI persist
             localStorage.setItem('username', newUsername);
             localStorage.setItem('role', newRole);
             localStorage.setItem('org', newOrg);
 
-            setToken(newToken);
             setRole(newRole);
             setUser({ username: newUsername, org: newOrg });
             setIsAuthenticated(true);
@@ -45,11 +52,13 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('username');
-        localStorage.removeItem('role');
-        localStorage.removeItem('org');
+    const logout = async () => {
+        try {
+            await api.post('/auth/logout');
+        } catch (err) {
+            console.error("Logout request failed", err);
+        }
+        localStorage.clear();
         setToken(null);
         setRole(null);
         setUser(null);

@@ -4,11 +4,14 @@ import (
 	"backend/internal/auth"
 	"backend/internal/fabric"
 	"backend/internal/models"
-	"log"
 	"fmt"
-	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
+	"log"
 	"strings"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
 // AuthHandler holds dependencies
@@ -110,19 +113,102 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		}
 	}
 
-	// 5. Generate JWT
+	// 5. Generate Dual Tokens
 	token, err = auth.GenerateToken(req.Username, role, orgResp)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Token generation failed"})
+		return c.Status(500).JSON(fiber.Map{"error": "Access token generation failed"})
 	}
 
+	refreshToken, err := auth.GenerateRefreshToken(req.Username, role, orgResp)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Refresh token generation failed"})
+	}
+
+	// 6. Set HttpOnly Cookies
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    token,
+		Expires:  time.Now().Add(15 * time.Minute),
+		HTTPOnly: true,
+		Secure:   false, // Set to true in production
+		SameSite: "Lax",
+	})
+
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HTTPOnly: true,
+		Secure:   false, // Set to true in production
+		SameSite: "Lax",
+	})
+
 	return c.JSON(fiber.Map{
-		"token":    token,
 		"username": req.Username,
 		"org":      orgResp,
 		"role":     role,
 		"status":   user.Status,
+		"token":    token, // Return for backward compatibility/header backup
 	})
+}
+
+// Refresh handles token rotation using the long-lived refresh token
+func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
+	refreshToken := c.Cookies("refresh_token")
+	if refreshToken == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "Refresh token required"})
+	}
+
+	// Validate refresh token
+	token, err := jwt.ParseWithClaims(refreshToken, &auth.UserClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte("super-secret-key-change-in-production"), nil // Shared secret
+	})
+
+	if err != nil || !token.Valid {
+		return c.Status(401).JSON(fiber.Map{"error": "Invalid or expired refresh token"})
+	}
+
+	claims, ok := token.Claims.(*auth.UserClaims)
+	if !ok {
+		return c.Status(401).JSON(fiber.Map{"error": "Invalid claims"})
+	}
+
+	// Generate new access token
+	newAccessToken, err := auth.GenerateToken(claims.Username, claims.Role, claims.Org)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Token generation failed"})
+	}
+
+	// Update access token cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    newAccessToken,
+		Expires:  time.Now().Add(15 * time.Minute),
+		HTTPOnly: true,
+		Secure:   false,
+		SameSite: "Lax",
+	})
+
+	return c.JSON(fiber.Map{
+		"token": newAccessToken,
+	})
+}
+
+// Logout clears the authentication cookies
+func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	c.Cookie(&fiber.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour),
+		HTTPOnly: true,
+	})
+	c.Cookie(&fiber.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour),
+		HTTPOnly: true,
+	})
+	return c.JSON(fiber.Map{"message": "Logged out successfully"})
 }
 
 // Register handles new user registration

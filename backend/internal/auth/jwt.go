@@ -17,14 +17,14 @@ type UserClaims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateToken creates a signed JWT
+// GenerateToken creates a short-lived access token (15 minutes)
 func GenerateToken(username, role, org string) (string, error) {
 	claims := UserClaims{
 		username,
 		role,
 		org,
 		jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 			Issuer:    "ownership-registry",
 		},
 	}
@@ -33,32 +33,53 @@ func GenerateToken(username, role, org string) (string, error) {
 	return token.SignedString(secretKey)
 }
 
-// Middleware validates the JWT token
+// GenerateRefreshToken creates a long-lived refresh token (7 days)
+func GenerateRefreshToken(username, role, org string) (string, error) {
+	claims := UserClaims{
+		username,
+		role,
+		org,
+		jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
+			Issuer:    "ownership-registry",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(secretKey)
+}
+
+// Middleware validates the JWT token (Check Header or Cookie)
 func Middleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Get Token from Header
+		var tokenString string
+
+		// 1. Try Authorization Header
 		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Missing Authorization Header"})
+		if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenString = authHeader[7:]
 		}
 
-		// Basic "Bearer <token>" check
-		if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid Token Format"})
+		// 2. Try Cookie if header is missing
+		if tokenString == "" {
+			tokenString = c.Cookies("access_token")
 		}
-		tokenString := authHeader[7:]
+
+		if tokenString == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Authentication required"})
+		}
 
 		token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
 			return secretKey, nil
 		})
 
 		if err != nil || !token.Valid {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid Token"})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid or expired session"})
 		}
 
 		claims, ok := token.Claims.(*UserClaims)
 		if !ok {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid Claims"})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid session claims"})
 		}
 
 		// Dictionary to store user info in context

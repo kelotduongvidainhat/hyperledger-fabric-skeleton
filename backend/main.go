@@ -148,7 +148,10 @@ func main() {
 	app := fiber.New(fiber.Config{
 		BodyLimit: 10 * 1024 * 1024, // 10 MB
 	})
-	app.Use(cors.New())
+	app.Use(cors.New(cors.Config{
+		AllowCredentials: true,
+		AllowOrigins:     "http://localhost:5173", // Frontend Dev Port
+	}))
 
 	// 3. START EVENTUAL CONSISTENCY LISTENER
 	// We use the Admin identity to listen for all events across the organization
@@ -177,6 +180,8 @@ func main() {
 	})
 	app.Post("/auth/login", authHandler.Login)
 	app.Post("/auth/register", authHandler.Register)
+	app.Post("/auth/refresh", authHandler.Refresh)
+	app.Post("/auth/logout", authHandler.Logout)
 	app.Delete("/auth/me", auth.Middleware(), authHandler.DeleteAccount)
 
 	// IPFS ROUTES

@@ -5,6 +5,7 @@ export const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    withCredentials: true, // Required for cookies
 });
 
 api.interceptors.request.use((config) => {
@@ -14,6 +15,43 @@ api.interceptors.request.use((config) => {
     }
     return config;
 });
+
+// Response interceptor for silent token refresh
+api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+
+        // If 401 and we haven't retried yet
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
+
+            try {
+                // Try to refresh the token using the refresh_token cookie
+                const { data } = await axios.post(
+                    `${api.defaults.baseURL}/auth/refresh`,
+                    {},
+                    { withCredentials: true }
+                );
+
+                // Update localStorage if we still use it (backup)
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
+
+                // Retry original request
+                return api(originalRequest);
+            } catch (refreshError) {
+                // Clear state if refresh fails
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                // Redirecting to login is handled by the component using the error
+                return Promise.reject(refreshError);
+            }
+        }
+        return Promise.reject(error);
+    }
+);
 
 export const fetchAssets = async () => {
     const response = await api.get('/assets');
