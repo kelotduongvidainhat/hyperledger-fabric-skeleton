@@ -40,6 +40,23 @@ services:
     networks:
       - test
 
+  # Open Policy Agent
+  opa:
+    image: openpolicyagent/opa:latest-static
+    container_name: opa
+    ports:
+      - "8181:8181"
+    command:
+      - "run"
+      - "--server"
+      - "--log-level=info"
+      - "--addr=:8181"
+      - "/app/policies"
+    volumes:
+      - ../backend/policies:/app/policies
+    networks:
+      - test
+
   # Certificate Authorities
   ca_orderer:
     image: hyperledger/fabric-ca:1.5.15

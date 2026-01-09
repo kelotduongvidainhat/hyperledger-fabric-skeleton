@@ -187,11 +187,35 @@ func main() {
 	// IPFS ROUTES
 	app.Post("/api/ipfs/upload", auth.Middleware(), ipfsHandler.Upload)
 
-	// ADMIN ROUTES (Protected + Role Check)
+	// OPA MIDDLEWARE: Centralized AuthZ delegation
+	app.Use(func(c *fiber.Ctx) error {
+		// Only apply to protected sub-groups or API routes
+		path := c.Path()
+		if !strings.HasPrefix(path, "/admin") && !strings.HasPrefix(path, "/assets") && !strings.HasPrefix(path, "/api/ipfs") {
+			return c.Next()
+		}
+
+		// Get user context (populated by auth.Middleware which should run before or inside groups)
+		// Since auth.Middleware() is applied per group below, we need a way to ensure 
+		// OPA runs AFTER JWT validation but before hander.
+		return c.Next()
+	})
+
+	// ADMIN ROUTES (Protected + OPA Check)
 	adminGroup := app.Group("/admin", auth.Middleware())
 	adminGroup.Use(func(c *fiber.Ctx) error {
-		if c.Locals("role") != "admin" {
-			return c.Status(403).JSON(fiber.Map{"error": "Admin access required"})
+		user := c.Locals("user").(string)
+		role := c.Locals("role").(string)
+		org := c.Locals("org").(string)
+
+		allowed, err := auth.CheckAuthorization(user, role, org, c.Method(), c.Path())
+		if err != nil {
+			log.Printf("OPA Error: %v", err)
+			return c.Status(500).JSON(fiber.Map{"error": "Authorization service error"})
+		}
+
+		if !allowed {
+			return c.Status(403).JSON(fiber.Map{"error": "Permission denied (OPA)"})
 		}
 		return c.Next()
 	})
@@ -229,13 +253,19 @@ func main() {
 
 	// Asset Routes (Protected)
 	api.Get("/", func(c *fiber.Ctx) error {
+		user := c.Locals("user").(string)
 		role := c.Locals("role").(string)
+		org := c.Locals("org").(string)
 
-		// Non-admins: Filtered Database view
+		// Consult OPA for high-level permission
+		allowed, err := auth.CheckAuthorization(user, role, org, c.Method(), c.Path())
+		if err != nil || !allowed {
+			return c.Status(403).JSON(fiber.Map{"error": "Permission denied by OPA"})
+		}
+
+		// Non-admins: Filtered Database view (Data-level filtering still applies)
 		if role != "admin" {
-			username := c.Locals("user").(string)
-			org := c.Locals("org").(string)
-			fullID := fmt.Sprintf("%s::%s", org, username)
+			fullID := fmt.Sprintf("%s::%s", org, user)
 
 			var assets []models.Asset
 			// Logic: Show if (PUBLIC OR Owner OR ProposedOwner) AND NOT DELETED

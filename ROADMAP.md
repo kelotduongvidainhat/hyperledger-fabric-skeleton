@@ -45,10 +45,10 @@ This roadmap outlines the future development and milestones for the Ownership Re
 - [ ] **Auditor View**: Advanced filtering and report generation.
 
 ## Phase 3: Advanced Features (Medium Term)
-- [ ] **Policy-as-Code (Open Policy Agent)**:
-    - [ ] Decouple authorization logic from the Backend into a dedicated OPA service.
-    - [ ] Implement `rego` policies for asset lifecycle (e.g., specific transfer window rules).
-    - [ ] Centralize "Who can do what" management across the entire network.
+- [x] **Policy-as-Code (Open Policy Agent)**:
+    - [x] Decouple authorization logic from the Backend into a dedicated OPA service.
+    - [x] Implement `rego` policies for asset lifecycle (e.g., specific transfer window rules).
+    - [x] Centralize "Who can do what" management across the entire network.
 - [ ] **Object Storage (MinIO)**:
     - Secondary storage for larger documents or metadata that doesn't fit on IPFS.
     - S3-compatible integration for legacy support.
